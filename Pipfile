@@ -1,0 +1,25 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+fastapi = "*"
+uvicorn = {extras = ["standard"], version = "*"}
+python-dotenv = "*"
+peewee = "*"
+email-validator = "*"
+pyjwt = "*"
+python-decouple = "*"
+
+[dev-packages]
+flake8 = "*"
+bandit = "*"
+flake8-bandit = "*"
+black = "*"
+install = "*"
+ipdb = "*"
+ipython = "*"
+
+[pipenv]
+allow_prereleases = true
