@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-import data
+import uvicorn
+
+# import data
 import schema
 
 load_dotenv()
@@ -120,3 +122,7 @@ async def get_social_link_by_key(platform=schema.SocialLinkEnum) -> dict:
         return JSONResponse(
             status_code=404, content={"message": f"No link stored for {platform}"}
         )
+
+
+if __name__ == "__main__":
+    uvicorn.run("main:app")
