@@ -1,0 +1,50 @@
+[project]
+name = "resumeapi"
+version = "0.1.0"
+description = "Create an API that provides my resume"
+authors = ["Eric Rochow <ericrochow@gmail.com>"]
+license = "Apache 2.0"
+readme = "README.md"
+python = "^3.6"
+homepage = ""
+repository = ""
+documentation = ""
+keywords = []
+classifiers = []
+
+[dependencies]
+
+
+[dev-dependencies]
+
+
+[scripts]
+
+
+[tool.black]
+line-length = 88
+target_version = ["py36", "py37", "py38", "py39"]
+include = "\.pyi?$"
+exclude = """
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+  | foo.py           # also separately exclude a file named foo.py in
+                     # the root of the project
+)
+"""
+
+[build-system]
+requires = ["setuptools>=40.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
