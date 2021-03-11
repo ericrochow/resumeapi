@@ -8,17 +8,19 @@ from pydantic import BaseModel, EmailStr, HttpUrl
 
 class BasicInfo(BaseModel):
     name: str
-    pronouns: List[str]
+    pronouns: str
     email: EmailStr
     phone: str
+    about: str
 
     class Config:
         schema_extra = {
             "example": {
                 "name": "John Jacobs",
-                "pronouns": ["they", "them"],
+                "pronouns": "['they', 'them']",
                 "email": "email@domain.tld",
                 "phone": "+1 (555) 555-5555",
+                "about": "I am job.",
             }
         }
 

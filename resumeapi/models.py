@@ -4,7 +4,7 @@ from contextvars import ContextVar
 import peewee
 
 
-DATABASE_NAME = "../resume.db"
+DATABASE_NAME = "resume.db"
 db_state_default = {"closed": None, "conn": None, "ctx": None, "transactions": None}
 db_state = ContextVar("db_state", default=db_state_default.copy())
 
@@ -26,117 +26,84 @@ db = peewee.SqliteDatabase(DATABASE_NAME, check_same_thread=False)
 db._state = PeeweeConnectionState()
 
 
-class User(peewee.Model):
+class RerferenceModel(peewee.Model):
+    class Meta:
+        database = db
+
+
+class User(RerferenceModel):
     email = peewee.CharField(unique=True, index=True)
     pw_hash = peewee.CharField()
     is_active = peewee.BooleanField(default=True)
 
-    class Meta:
-        database = db
 
-
-class BasicInfo(peewee.Model):
+class BasicInfo(RerferenceModel):
     fact = peewee.CharField(unique=True)
     value = peewee.CharField()
 
-    class Meta:
-        database = db
 
-
-class Education(peewee.Model):
+class Education(RerferenceModel):
     institution = peewee.CharField()
     degree = peewee.CharField()
     graduation_date = peewee.IntegerField()
     gpa = peewee.FloatField()
 
-    class Meta:
-        database = db
 
-
-class Job(peewee.Model):
+class Job(RerferenceModel):
     employer = peewee.CharField()
     employer_summary = peewee.CharField()
+    location = peewee.CharField()
     job_title = peewee.CharField()
     job_summary = peewee.CharField()
-
-    class Meta:
-        database = db
+    time = peewee.CharField()
 
 
-class JobHighlight(peewee.Model):
-    highlight = peewee.ForeignKeyField(Job, backref="highlights")
-
-    class Meta:
-        database = db
+class JobHighlight(RerferenceModel):
+    highlight = peewee.CharField()
+    job = peewee.ForeignKeyField(Job, backref="highlights")
 
 
-class JobDetail(peewee.Model):
-    detail = peewee.ForeignKeyField(Job, backref="details")
-
-    class Meta:
-        database = db
+class JobDetail(RerferenceModel):
+    detail = peewee.CharField()
+    job = peewee.ForeignKeyField(Job, backref="details")
 
 
-class Certification(peewee.Model):
+class Certification(RerferenceModel):
     cert = peewee.CharField()
     full_name = peewee.CharField()
     time = peewee.CharField()
     valid = peewee.BooleanField()
     progress = peewee.IntegerField()
 
-    class Meta:
-        database = db
 
-
-class Competency(peewee.Model):
+class Competency(RerferenceModel):
     competency = peewee.CharField()
 
-    class Meta:
-        database = db
 
-
-class PersonalInterest(peewee.Model):
+class PersonalInterest(RerferenceModel):
     interest = peewee.CharField()
 
-    class Meta:
-        database = db
 
-
-class TechnicalInterest(peewee.Model):
+class TechnicalInterest(RerferenceModel):
     interest = peewee.CharField()
 
-    class Meta:
-        database = db
 
-
-class Preference(peewee.Model):
+class Preference(RerferenceModel):
     preference = peewee.CharField()
     value = peewee.CharField()
 
-    class Meta:
-        database = db
 
-
-class SideProject(peewee.Model):
+class SideProject(RerferenceModel):
     title = peewee.CharField()
     tagline = peewee.CharField()
     link = peewee.CharField()
 
-    class Meta:
-        database = db
 
-
-class SocialLink(peewee.Model):
+class SocialLink(RerferenceModel):
     platform = peewee.CharField()
     link = peewee.CharField()
 
-    class Meta:
-        database = db
 
-
-class Skill(peewee.Model):
+class Skill(RerferenceModel):
     skill = peewee.CharField()
     level = peewee.IntegerField()
-
-    class Meta:
-        database = db
