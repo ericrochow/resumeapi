@@ -1,39 +1,129 @@
 #!/usr/bin/env python3
 
-import bcrypt
 from contextlib import suppress
-import time
-from typing import Dict, List
+from datetime import datetime, timedelta
+import logging
+import os
 
+from typing import Dict, List, Optional
+
+from dotenv import load_dotenv
+from jose import jwt
 from peewee import DoesNotExist, Model
+from passlib.context import CryptContext
 
-import jwt
-from decouple import config
-
-# from resumeapi.models import (  # noqa: F401
-from models import (  # noqa: F401
+from models import (
     BasicInfo,
     Certification,
     Competency,
     Education,
     Job,
-    JobDetail,
-    JobHighlight,
     PersonalInterest,
     Preference,
     SideProject,
     Skill,
     SocialLink,
     TechnicalInterest,
-    User,
+    User as UserModel,
 )
 
+from schema import User
 
-class Auth:
+
+class AuthController:
     def __init__(self) -> None:
-        pass
+        load_dotenv()
+        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        self.secret_key = os.getenv("SECRET_KEY")
+        self.algorithm = os.getenv("ALGORITHM")
+        self.logger = logging.getLogger(__name__)
+        self.logger.addHandler(logging.StreamHandler)
 
-    def create_user(self, email: str, password: str, is_active: bool = True) -> Model:
+    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+        """
+        Verifies that the given password matches the hash stored in the database.
+
+        Args:
+            plain_password: A string containing the plaintext password
+            hashed_password: A string containing the bcrypt-hashed password
+        Returns:
+            A boolean specifying whether the password matches.
+        """
+        return self.pwd_context.verify(plain_password, hashed_password)
+
+    def get_password_hash(self, password: str) -> str:
+        """
+        Provides a bcrypt hash of the given plaintext password.
+
+        Args:
+            password: A string containing a plain-text password to be hashed.
+        Returns:
+            A string containing the bcrypt-hashed password.
+        """
+        return self.pwd_context.hash(password)
+
+    def get_user(self, username: str) -> UserModel:
+        """
+        Gets information about the requested user.
+
+        Args:
+            username: A string specifying the username of the user to look up.
+        Returns:
+            A User model of the requested user.
+        Raises:
+            KeyError: No such user exists.
+        """
+        try:
+            return UserModel.get(UserModel.username == username)
+        except DoesNotExist:
+            raise KeyError("No such user exists")
+
+    def authenticate_user(self, username: str, password: str) -> UserModel:
+        """
+        Authenticates a user.
+
+        Args:
+            username: A string containing the user's username
+            password: A string containing the user's password
+        Returns:
+            A User model object of the authenticated user.
+        Raises:
+            KeyError: No such user exists.
+        """
+        with suppress(DoesNotExist):
+            self.logger.debug("Looking for user %s", username)
+            user = UserModel.get(UserModel.username == username)
+            self.logger.debug("User %s found", user.username)
+            if self.verify_password(password, user.password) and not user.disabled:
+                self.logger.info("Successful authentication")
+                return user
+            self.logger.error("Incorrect password")
+
+    def create_access_token(
+        self, data: dict, expires_delta: Optional[timedelta] = None
+    ) -> str:
+        """
+        Creates an access token for a user.
+
+        Args:
+            data: A dict containing the username of the user whose token to generate
+            expires_delta: A timedelta object containing the maximum lifetime of the
+                token (optional)
+        Returns:
+            A string containing an encoded JSON web token.
+        """
+        to_encode = data.copy()
+        if expires_delta:
+            expire = datetime.utcnow() + expires_delta
+        else:
+            expire = datetime.utcnow() + timedelta(minutes=15)
+        to_encode.update({"exp": expire})
+        encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+        return encoded_jwt
+
+    def create_user(
+        self, username: str, password: str, disabled: bool = False
+    ) -> Model:
         """
         Creates a new user in the database.
 
@@ -46,83 +136,131 @@ class Auth:
             An object of the User class.
         """
         user = User.create(
-            email=email.lower(),
-            pw_hash=bcrypt.hashpw(password.encode()),
-            is_active=is_active,
+            username=username.lower(),
+            password=self.get_password_hash(password),
+            disabled=disabled,
         )
         return user
 
-    def login(self, email: str, password: str) -> bool:
+    def deactivate_user(self, username: str) -> None:
         """
-        Logs a user into the API.
+        Deactivates an existing user in the DB.
 
         Args:
-            email: A string specifying the user's email address
-            password: A string specifying the user's plain-text password
+            username: A string specifying the username of the user to disable
         Returns:
-            A boolean specifying whether the login operation was successful.
+            None
+        Raises:
+            KeyError: The user does not exist in the DB
         """
+        self.logger.info("Attempting to deactivate user %s", username)
         try:
-            user = User.get(User.email == email.lower())
-            if user.is_active:
-                return bcrypt.checkpw(password.encode(), user.pw_hash)
+            user = UserModel.get(UserModel.username == username.lower())
+            user.disabled = True
+            user.save()
+            self.logger.info("Successfully deactivated user %s", username)
         except DoesNotExist:
-            return False
-
-    def deactivate_user(self, email: str) -> None:
-        """"""
-        user = User.get(User.email == email.lower())
-        user.is_active = False
-
-
-class TokenMgmt:
-    JWT_SECRET = config("SECRET")
-    JWT_ALGORITHM = config("ALGORITHM")
-
-    def __init__(self) -> None:
-        pass
-
-    def token_response(self, token: str):
-        return {"access_token": token}
-
-    def sign_jwt(self, user_id: str) -> Dict[str, str]:
-        payload = {"user_id": user_id, "expires": time.time() + 600}
-        token = jwt.encode(payload, self.JWT_SECRET, algorithm=self.JWT_ALGORITHM)
-
-        return self.token_response(token)
-
-    def decode_jwt(self, token: str) -> dict:
-        try:
-            decoded_token = jwt.decode(
-                token, self.JWT_SECRET, algorithms=[self.JWT_ALGORITHM]
+            self.logger.error(
+                "Failed to deactivate user %s because they are not in the db!",
+                username,
             )
-            return decoded_token if decoded_token["expires"] >= time.time() else None
-        except Exception:
-            return {}
+            raise KeyError("The requested user does not exist!")
 
 
 class ResumeController:
     def __init__(self) -> None:
         pass
 
-    def get_basic_info(self) -> Dict[str, str]:
-        """"""
+    @staticmethod
+    def get_all_users() -> List[Dict[str, str]]:
+        """
+        Lists all configured users for auditing purposes.
 
+        Args:
+            None
+        Returns:
+            A list of dictionaries containing the username and disabled status of each
+                user.
+        """
+        users = {
+            "users": [
+                {"username": user.username, "disabled": user.disabled}
+                for user in UserModel.select()
+            ]
+        }
+        return users
+
+    @staticmethod
+    def get_basic_info() -> Dict[str, str]:
+        """
+        Lists all configured basic info facts.
+
+        Args:
+            None
+        Returns:
+            A dict containing each fact as a key/value pair.
+        """
         info = BasicInfo.select()
         resp = {}
         for i in info:
             resp[i.fact] = i.value
         return resp
 
-    def get_basic_info_item(self, fact: str) -> Dict[str, str]:
-        """"""
+    @staticmethod
+    def get_basic_info_item(fact: str) -> Dict[str, str]:
+        """
+        Finds the value of the requested basic value fact.
+
+        Args:
+            fact: A string specifying the fact to look up (e.g. name)
+        Returns:
+            A dict containing a single key/value pair for the requested item.
+        Raises:
+            KeyError: The requested fact does not exist.
+        """
         try:
             info = BasicInfo.get(BasicInfo.fact == fact)
             return {info.fact: info.value}
         except DoesNotExist:
             raise KeyError("Fact does not exist in the DB.")
 
-    def get_all_education_history(self) -> List[Dict[str, str]]:
+    @staticmethod
+    def upsert_basic_info_item(item: Dict[str, str]) -> int:
+        """
+        Creates or updates an existing fact.
+
+        Args:
+            item: A dict containing the name of the fact "fact" and the value "value"
+        Returns:
+            An integer specifying the ID of the key/value pair.
+        """
+        query = BasicInfo.insert(fact=item.fact, value=item.value).on_conflict(
+            conflict_target=[BasicInfo.fact],
+            preserve=[BasicInfo.fact],
+            update={BasicInfo.value: item.value},
+        )
+        return query.execute()
+
+    @staticmethod
+    def delete_basic_info_item(fact: str) -> None:
+        """
+        Deletes an existing fact.
+
+        Args:
+            fact: A string specifying the name of the fact
+        Returns:
+            An integer specifying the number of impacted rows in the DB.
+        Raises:
+            KeyError: The fact does not exist in the DB.
+        """
+        try:
+            item = BasicInfo.get(BasicInfo.fact == fact)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested fact does not exist")
+
+    @staticmethod
+    def get_all_education_history() -> List[Dict[str, str]]:
         """
         Retrieves all education history objects stored in the database.
 
@@ -135,6 +273,7 @@ class ResumeController:
         history = []
         for edu in education:
             e = {
+                "edu_id": edu.id,
                 "institution": edu.institution,
                 "degree": edu.degree,
                 "graduation_date": edu.graduation_date,
@@ -143,7 +282,8 @@ class ResumeController:
             history.append(e)
         return history
 
-    def get_education_item(self, index: int) -> Dict[str, str]:
+    @staticmethod
+    def get_education_item(index: int) -> Dict[str, str]:
         """
         Retrieves and education object by its id (index).
 
@@ -151,6 +291,8 @@ class ResumeController:
             index:
         Returns:
             A dict containing details about the requested education item.
+        Raises:
+            IndexError: No item exists at this index.
         """
         try:
             edu = Education.get_by_id(index)
@@ -164,23 +306,66 @@ class ResumeController:
         except DoesNotExist:
             raise IndexError("No item exists at this index.")
 
-    def get_experience(self) -> List[Dict[str, str]]:
+    @staticmethod
+    def upsert_education_item(edu: Dict[str, str]) -> int:
         """"""
-        resp = []
-        for ctr in range(1, 99):
-            try:
-                resp.append(self.get_experience_item(ctr))
-            except IndexError:
-                break
-        return resp
+        query = Education.insert(
+            institution=edu.institution,
+            degree=edu.degree,
+            graduation_date=edu.graduation_date,
+            gpa=edu.gpa,
+        ).on_conflict(
+            conflict_target=[Education.institution, Education.degree],
+            preserve=[Education.institution, Education.degree],
+            update={
+                Education.graduation_date: edu.graduation_date,
+                Education.gpa: edu.gpa,
+            },
+        )
+        return query.execute()
 
-    def get_experience_item(self, index: int) -> Dict[str, str]:
+    @staticmethod
+    def delete_education_item(index: int) -> None:
         """"""
         try:
-            exp = Job.get_by_id(index)
+            item = Education.get_by_id(index)
+            item.delete_instance()
+        except DoesNotExist:
+            raise IndexError("No item exists at this index.")
+
+    @classmethod
+    def get_experience(cls) -> List[Dict[str, str]]:
+        """
+        Retrieves a list of previous jobs.
+
+        Args:
+            None
+        Returns:
+            A list of previous jobs and their related details.
+        """
+        resp = []
+        jobs = Job.select()
+        for job in jobs:
+            j = ResumeController.get_experience_item(job.id)
+            resp.append(j)
+        return resp
+
+    @staticmethod
+    def get_experience_item(job_id: int) -> Dict[str, str]:
+        """
+        Retrieves details for previous job.
+
+        Args:
+            job_id
+        Returns:
+            A dict containing the details of the job.
+        """
+        try:
+            exp = Job.get_by_id(job_id)
         except DoesNotExist:
             raise IndexError("No such experience exists in the DB.")
         resp = {
+            "job_id": exp.id,
             "employer": exp.employer,
             "employer_summary": exp.employer_summary,
             "location": exp.location,
@@ -197,7 +382,51 @@ class ResumeController:
                 resp["highlights"].append(hl.highlight)
         return resp
 
-    def get_all_preferences(self) -> Dict[str, str]:
+    @staticmethod
+    def upsert_experience_item(job: Dict[str, str]) -> int:
+        """"""
+        query = Education.insert(
+            employer=job.employer,
+            employer_summary=job.summary,
+            location=job.location,
+            job_title=job.job_title,
+            job_summary=job.job_summary,
+        ).on_conflict(
+            conflict_target=[Job.employer, Job.job_title],
+            preserve=[Job.employer, Job.location, Job.job_title],
+            update={
+                Job.employer_summary: job.employer_summary,
+                Job.job_summary: job.job_summary,
+            },
+        )
+        return query.execute()
+
+    @staticmethod
+    def delete_experience_item(index: int):
+        try:
+            item = Job.get_by_id(index)
+            item.delete_instance()
+        except DoesNotExist:
+            raise IndexError("No item exists at this index.")
+
+    @staticmethod
+    def upsert_job_detail():
+        pass
+
+    @staticmethod
+    def delete_job_detail():
+        pass
+
+    @staticmethod
+    def upsert_job_highlight():
+        pass
+
+    @staticmethod
+    def delete_job_highlight():
+        pass
+
+    @staticmethod
+    def get_all_preferences() -> Dict[str, str]:
         """
         Retrieves all preferences stored in the database.
 
@@ -212,7 +441,8 @@ class ResumeController:
             resp[pref.preference] = pref.value
         return prefs
 
-    def get_preference(self, preference: str) -> str:
+    @staticmethod
+    def get_preference(preference: str) -> str:
         """
         Retrieves the value of a specified preference.
 
@@ -229,7 +459,8 @@ class ResumeController:
         except DoesNotExist:
             raise KeyError(f"No value for {preference} stored in the DB.")
 
-    def add_preference(self, preference: str, value: str) -> Dict[str, str]:
+    @staticmethod
+    def add_preference(preference: str, value: str) -> Dict[str, str]:
         """
         Adds a new preference to the preferences list.
 
@@ -244,7 +475,16 @@ class ResumeController:
         pref, created = Preference.get_or_create(preference=preference, value=value)
         return {"preference": pref.preference, "value": pref.value, "created": created}
 
-    def get_certifications(self, valid_only: bool = False) -> List[Dict[str, str]]:
+    @staticmethod
+    def upsert_preference():
+        pass
+
+    @staticmethod
+    def delete_preference():
+        pass
+
+    @staticmethod
+    def get_certifications(valid_only: bool = False) -> List[Dict[str, str]]:
         """
         Retrieves all configured certifications (or optionally only currently-valid
             certifications).
@@ -271,7 +511,8 @@ class ResumeController:
             resp.append(cert)
         return resp
 
-    def get_certification_by_name(self, certification: str) -> Dict[str, str]:
+    @staticmethod
+    def get_certification_by_name(certification: str) -> Dict[str, str]:
         """
         Retrieves information about a specified certification.
 
@@ -295,7 +536,16 @@ class ResumeController:
         except DoesNotExist:
             raise KeyError("Certification not implemented in the DB.")
 
-    def get_side_projects(self) -> List[Dict[str, str]]:
+    @staticmethod
+    def upsert_certification():
+        pass
+
+    @staticmethod
+    def delete_certification():
+        pass
+
+    @staticmethod
+    def get_side_projects() -> List[Dict[str, str]]:
         """
         Retrieves information about all side projects stored in the DB.
 
@@ -311,7 +561,8 @@ class ResumeController:
             resp.append(project)
         return resp
 
-    def get_side_project(self, project: str) -> Dict[str, str]:
+    @staticmethod
+    def get_side_project(project: str) -> Dict[str, str]:
         """
         Retrieves information about the requested side project.
 
@@ -329,7 +580,16 @@ class ResumeController:
         except DoesNotExist:
             raise KeyError("The requested project does not exist.")
 
-    def get_technical_interests(self) -> List[str]:
+    @staticmethod
+    def upsert_side_project():
+        pass
+
+    @staticmethod
+    def delete_side_project():
+        pass
+
+    @staticmethod
+    def get_technical_interests() -> List[str]:
         """
         Retrives a list of all configured technical interests.
 
@@ -338,9 +598,20 @@ class ResumeController:
         Returns:
             A list of all configured technical interests.
         """
-        return [interest.interest for interest in TechnicalInterest.select()]
+        return {
+            "technical": [interest.interest for interest in TechnicalInterest.select()]
+        }
 
-    def get_personal_interests(self) -> List[str]:
+    @staticmethod
+    def upsert_technical_interest():
+        pass
+
+    @staticmethod
+    def delete_technical_interest():
+        pass
+
+    @staticmethod
+    def get_personal_interests() -> List[str]:
         """
         Retrieves a list of all configured personal interests.
 
@@ -349,9 +620,28 @@ class ResumeController:
         Returns:
             A list of all configured technical interests.
         """
-        return [interest.interest for interest in PersonalInterest.select()]
+        return {
+            "personal": [interest.interest for interest in PersonalInterest.select()]
+        }
 
-    def get_social_links(self) -> Dict[str, str]:
+    @staticmethod
+    def upsert_personal_interest():
+        pass
+
+    @staticmethod
+    def delete_personal_interest():
+        pass
+
+    @classmethod
+    def get_all_interests(cls) -> Dict[str, List[str]]:
+        """"""
+        return {
+            **ResumeController.get_personal_interests(),
+            **ResumeController.get_technical_interests(),
+        }
+
+    @staticmethod
+    def get_social_links() -> Dict[str, str]:
         """
         Retrieves all social links.
 
@@ -366,7 +656,8 @@ class ResumeController:
             resp[link.platform] = link.link
         return resp
 
-    def get_social_link(self, platform: str) -> Dict[str, str]:
+    @staticmethod
+    def get_social_link(platform: str) -> Dict[str, str]:
         """
         Retrives a link to the requested social platform.
 
@@ -383,3 +674,74 @@ class ResumeController:
             return {platform: link.link}
         except DoesNotExist:
             raise KeyError("The requested platform is not configured")
+
+    @staticmethod
+    def upsert_social_link():
+        pass
+
+    @staticmethod
+    def delete_social_link():
+        pass
+
+    @staticmethod
+    def get_skills() -> Dict[str, List[Dict[str, str]]]:
+        """
+        Retrives a list of all configured skills.
+
+        Args:
+            None
+        Returns:
+            A list of configured skills and their respective details.
+        """
+        return {
+            "skills": [
+                {"skill": skill.skill, "level": skill.level}
+                for skill in Skill.select()
+            ]
+        }
+
+    @staticmethod
+    def get_skill(skill: str) -> Dict[str, str]:
+        """
+        Retrieves details about the requested skill.
+
+        Args:
+            skill: A string specifying the desired skill
+        Returns:
+            A dict contatining details about the requested skill
+        Raises:
+            KeyError: The requested skill is not listed.
+        """
+        try:
+            details = Skill.get(Skill.skill == skill)
+            return {"skill": details.skill, "level": details.level}
+        except DoesNotExist:
+            raise KeyError("The requested skill does not exist (yet!)")
+
+    @staticmethod
+    def upsert_skill():
+        pass
+
+    @staticmethod
+    def delete_skill():
+        pass
+
+    @staticmethod
+    def get_competencies() -> Dict[str, List[str]]:
+        """
+        Retrieves a list of configured competencies.
+
+        Args:
+            None
+        Returns:
+            A list of configured competencies.
+        """
+        return {"competencies": [comp.competency for comp in Competency.select()]}
+
+    @staticmethod
+    def upsert_competency():
+        pass
+
+    @staticmethod
+    def delete_competency():
+        pass

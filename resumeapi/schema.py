@@ -25,6 +25,19 @@ class BasicInfo(BaseModel):
         }
 
 
+class BasicInfoItem(BaseModel):
+    fact: str
+    value: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "fact": "name",
+                "value": "John Jacobs",
+            }
+        }
+
+
 class Education(BaseModel):
     institution: str
     degree: str
@@ -44,6 +57,18 @@ class Education(BaseModel):
 
 class EducationHistory(BaseModel):
     history: List[Education]
+
+    class Config:
+        schema_extra = {
+            "example": [
+                {
+                    "institution": "University of Oxford",
+                    "degree": "Bachelor of Fine Arts in Comma Usage",
+                    "graduation_date": 2001,
+                    "gpa": 4.0,
+                }
+            ]
+        }
 
 
 class Job(BaseModel):
@@ -72,6 +97,23 @@ class Job(BaseModel):
 class JobHistory(BaseModel):
     experience: List[Job]
 
+    class Config:
+        schema_extra = {
+            "example": [
+                {
+                    "employer": "Acme, LLC",
+                    "employer_summary": "Acme, LLC makes or sells something I think",
+                    "job_title": "Chief Scotch Officer",
+                    "job_summary": "Report to my uncle the CEO and attend meetings",
+                    "details": ["Various duties as assigned"],
+                    "highlights": [
+                        "I once made my chair swivel around 64 times without getting"
+                        " sick"
+                    ],
+                }
+            ]
+        }
+
 
 class Certification(BaseModel):
     cert: str
@@ -95,17 +137,54 @@ class Certification(BaseModel):
 class CertificationHistory(BaseModel):
     certification_history: List[Certification]
 
+    class Config:
+        schema_extra = {
+            "example": [
+                {
+                    "cert": "CCIE",
+                    "full_name": "Cisco Certified Internetwork Expert",
+                    "time": "2001 - Present",
+                    "valid": True,
+                    "progress": 100,
+                }
+            ]
+        }
+
 
 class Competencies(BaseModel):
     competencies: List[str]
 
+    class Config:
+        schema_extra = {
+            "example": {"competencies": ["synergy", "agility", "team player"]}
+        }
+
+
+class Interests(BaseModel):
+    personal: List[str]
+    technical: List[str]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "persona": ["Movies", "Sports", "Books"],
+                "technical": ["Python", "Rust", "Routing"],
+            }
+        }
+
 
 class PersonalInterests(BaseModel):
-    personal_interests: List[str]
+    personal: List[str]
+
+    class Config:
+        schema_extra = {"example": {"personal": ["Movies", "Sports", "Books"]}}
 
 
 class TechnicalInterests(BaseModel):
-    technical_interests: List[str]
+    technical: List[str]
+
+    class Config:
+        schema_extra = {"example": {"technical": ["Python", "Rust", "Routing"]}}
 
 
 class Preferences(BaseModel):
@@ -182,6 +261,28 @@ class SocialLinkEnum(str, Enum):
     Resume = "resume"
 
 
+class Skill(BaseModel):
+    skill: str
+    level: int
+
+    class Config:
+        schema_extra = {"exampe": {"skill": "Git", "level": 75}}
+
+
+class Skills(BaseModel):
+    skills: List[Skill]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "skills": [
+                    {"skill": "Git", "level": 75},
+                    {"skill": "Python", "level": 42},
+                ]
+            }
+        }
+
+
 class FullResume(BaseModel):
     basic_info: BasicInfo
     experience: JobHistory
@@ -191,3 +292,38 @@ class FullResume(BaseModel):
     personal_interests: PersonalInterests
     social_links: SocialLinks
     preferences: Preferences
+
+
+class User(BaseModel):
+    username: str
+    disabled: Optional[bool] = None
+
+    class Config:
+        schema_extra = {"example": {"username": "leeroy", "disabled": True}}
+
+
+class Users(BaseModel):
+    users: List[User]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "users": [
+                    {"username": "leeroy", "disabled": True},
+                    {"username": "jenkins", "disabled": False},
+                ]
+            }
+        }
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "access_token": "long_bearer_token_here",
+                "token_type": "bearer",
+            }
+        }

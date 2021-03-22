@@ -32,9 +32,14 @@ class RerferenceModel(peewee.Model):
 
 
 class User(RerferenceModel):
-    email = peewee.CharField(unique=True, index=True)
-    pw_hash = peewee.CharField()
-    is_active = peewee.BooleanField(default=True)
+    username = peewee.CharField(unique=True, index=True)
+    password = peewee.CharField()
+    disabled = peewee.BooleanField(default=False)
+
+
+# class Token(RerferenceModel):
+# token = peewee.CharField()
+# user = peewee.ForeignKeyField(User, backref="tokens")
 
 
 class BasicInfo(RerferenceModel):
@@ -69,7 +74,7 @@ class JobDetail(RerferenceModel):
 
 
 class Certification(RerferenceModel):
-    cert = peewee.CharField()
+    cert = peewee.CharField(unique=True)
     full_name = peewee.CharField()
     time = peewee.CharField()
     valid = peewee.BooleanField()
@@ -77,33 +82,33 @@ class Certification(RerferenceModel):
 
 
 class Competency(RerferenceModel):
-    competency = peewee.CharField()
+    competency = peewee.CharField(unique=True)
 
 
 class PersonalInterest(RerferenceModel):
-    interest = peewee.CharField()
+    interest = peewee.CharField(unique=True)
 
 
 class TechnicalInterest(RerferenceModel):
-    interest = peewee.CharField()
+    interest = peewee.CharField(unique=True)
 
 
 class Preference(RerferenceModel):
-    preference = peewee.CharField()
+    preference = peewee.CharField(unique=True)
     value = peewee.CharField()
 
 
 class SideProject(RerferenceModel):
-    title = peewee.CharField()
+    title = peewee.CharField(unique=True)
     tagline = peewee.CharField()
     link = peewee.CharField()
 
 
 class SocialLink(RerferenceModel):
-    platform = peewee.CharField()
+    platform = peewee.CharField(unique=True)
     link = peewee.CharField()
 
 
 class Skill(RerferenceModel):
-    skill = peewee.CharField()
+    skill = peewee.CharField(unique=True)
     level = peewee.IntegerField()

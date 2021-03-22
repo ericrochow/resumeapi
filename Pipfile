@@ -4,14 +4,13 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-fastapi = "*"
-uvicorn = {extras = ["standard"], version = "*"}
-python-dotenv = "*"
+fastapi = {extras = ["all"], version = "*"}
+passlib = {extras = ["bcrypt"], version = "*"}
 peewee = "*"
-email-validator = "*"
-pyjwt = "*"
-python-decouple = "*"
-bcrypt = "*"
+python-dotenv = "*"
+python-jose = {extras = ["cryptography"], version = "*"}
+python-multipart = "*"
+uvicorn = {extras = ["standard"], version = "*"}
 
 [dev-packages]
 bandit = "*"
