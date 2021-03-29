@@ -39,6 +39,7 @@ class BasicInfoItem(BaseModel):
 
 
 class Education(BaseModel):
+    id: Optional[int]
     institution: str
     degree: str
     graduation_date: int
@@ -47,6 +48,7 @@ class Education(BaseModel):
     class Config:
         schema_extra = {
             "example": {
+                "id": 1,
                 "institution": "University of Oxford",
                 "degree": "Bachelor of Fine Arts in Comma Usage",
                 "graduation_date": 2001,
@@ -71,7 +73,20 @@ class EducationHistory(BaseModel):
         }
 
 
+class JobDetail(BaseModel):
+    id: Optional[int]
+    job: int
+    job_detail: str
+
+
+class JobHighlight(BaseModel):
+    id: Optional[int]
+    job: int
+    job_highlight: str
+
+
 class Job(BaseModel):
+    id: Optional[int]
     employer: str
     employer_summary: str
     job_title: str
@@ -82,13 +97,18 @@ class Job(BaseModel):
     class Config:
         schema_extra = {
             "example": {
+                "id": 1,
                 "employer": "Acme, LLC",
                 "employer_summary": "Acme, LLC makes or sells something I think",
                 "job_title": "Chief Scotch Officer",
                 "job_summary": "Report to my uncle the CEO and attend meetings",
-                "details": ["Various duties as assigned"],
+                "details": [{"id": 1, "detail": "Various duties as assigned"}],
                 "highlights": [
-                    "I once made my chair swivel around 64 times without getting sick"
+                    {
+                        "id": 1,
+                        "highlight": "I once made my chair swivel around 64 times"
+                        " without getting sick",
+                    }
                 ],
             }
         }
@@ -101,6 +121,7 @@ class JobHistory(BaseModel):
         schema_extra = {
             "example": [
                 {
+                    "id": 1,
                     "employer": "Acme, LLC",
                     "employer_summary": "Acme, LLC makes or sells something I think",
                     "job_title": "Chief Scotch Officer",
@@ -167,7 +188,7 @@ class Interests(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "persona": ["Movies", "Sports", "Books"],
+                "personal": ["Movies", "Sports", "Books"],
                 "technical": ["Python", "Rust", "Routing"],
             }
         }
@@ -231,24 +252,14 @@ class SideProjects(BaseModel):
     projects: List[SideProject]
 
 
-class SocialLinks(BaseModel):
-    linkedin: Optional[HttpUrl]
-    github: Optional[HttpUrl]
-    twitter: Optional[HttpUrl]
-    matrix_im: Optional[str]
-    website: Optional[HttpUrl]
-    resume: Optional[HttpUrl]
+class SocialLink(BaseModel):
+    platform: str
+    link: HttpUrl
 
     class Config:
         schema_extra = {
-            "example": {
-                "linkedin": "https://linkedin.com/in/my_user",
-                "github": "https://gibhub.com/my_user",
-                "twitter": "https://twitter.com/my_user",
-                # "matrix_im: "@my_user:matrix.homeserver.com",
-                "website": "https://myawesmomewebsite.com",
-                "resume": "https://myonlineresume.com",
-            }
+            "platform": "linkedin",
+            "link": "https://linkedin.com/in/my_user",
         }
 
 
@@ -259,6 +270,28 @@ class SocialLinkEnum(str, Enum):
     Matrix_im = "matrix_im"
     Website = "website"
     Resume = "resume"
+    Facebook = "facebook"
+
+
+class SocialLinks(BaseModel):
+
+    social_links: List[SocialLink]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "social_links": [
+                    {
+                        "platform": "linkedin",
+                        "link": "https://linkedin.com/in/my_user",
+                    },
+                    {"platform": "github", "link": "https://gibhub.com/my_user"},
+                    {"platform": "twitter", "link": "https://twitter.com/my_user"},
+                    {"platform": "website", "link": "https://myawesmomewebsite.com"},
+                    {"platform": "resume", "link": "https://myonlineresume.com"},
+                ]
+            }
+        }
 
 
 class Skill(BaseModel):

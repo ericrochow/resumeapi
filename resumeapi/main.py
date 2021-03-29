@@ -302,7 +302,6 @@ async def get_all_interests() -> dict:
 
 
 @app.get(
-    # "/technical_interests",
     "/interests/technical",
     summary="Technical interests",
     description="Finds a list of career-related topics of interest to me",
@@ -311,12 +310,10 @@ async def get_all_interests() -> dict:
     tags=["interests"],
 )
 async def get_technical_interests() -> dict:
-    # return {"technical_interests": resume.get_technical_interests()}
     return resume.get_technical_interests()
 
 
 @app.get(
-    # "/personal_interests",
     "/interests/personal",
     summary="Personal interests",
     description="Finds a list of non-career-related topics of interest to me",
