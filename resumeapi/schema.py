@@ -181,6 +181,15 @@ class Competencies(BaseModel):
         }
 
 
+class Interest(BaseModel):
+    interest: str
+
+
+class InterestTypes(str, Enum):
+    personal = "personal"
+    technical = "technical"
+
+
 class Interests(BaseModel):
     personal: List[str]
     technical: List[str]
@@ -252,17 +261,6 @@ class SideProjects(BaseModel):
     projects: List[SideProject]
 
 
-class SocialLink(BaseModel):
-    platform: str
-    link: HttpUrl
-
-    class Config:
-        schema_extra = {
-            "platform": "linkedin",
-            "link": "https://linkedin.com/in/my_user",
-        }
-
-
 class SocialLinkEnum(str, Enum):
     LinkedIn = "linkedin"
     Github = "github"
@@ -271,6 +269,17 @@ class SocialLinkEnum(str, Enum):
     Website = "website"
     Resume = "resume"
     Facebook = "facebook"
+
+
+class SocialLink(BaseModel):
+    platform: SocialLinkEnum
+    link: HttpUrl
+
+    class Config:
+        schema_extra = {
+            "platform": "linkedin",
+            "link": "https://linkedin.com/in/my_user",
+        }
 
 
 class SocialLinks(BaseModel):

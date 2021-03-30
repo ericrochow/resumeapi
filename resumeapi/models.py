@@ -93,6 +93,15 @@ class TechnicalInterest(RerferenceModel):
     interest = peewee.CharField(unique=True)
 
 
+class InterestType(RerferenceModel):
+    interest_type = peewee.CharField(unique=True)
+
+
+class Interest(RerferenceModel):
+    interest_type = peewee.ForeignKeyField(InterestType, backref="type")
+    interest = peewee.CharField(unique=True)
+
+
 class Preference(RerferenceModel):
     preference = peewee.CharField(unique=True)
     value = peewee.CharField()

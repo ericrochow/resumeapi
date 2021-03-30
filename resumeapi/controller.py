@@ -12,8 +12,8 @@ from jose import jwt
 from peewee import DoesNotExist, Model
 from passlib.context import CryptContext
 
-from . import models
-from . import schema
+import models
+import schema
 
 
 class AuthController:
@@ -742,41 +742,47 @@ class ResumeController:
             raise KeyError("The requested side project does not exist")
 
     @staticmethod
-    def get_technical_interests() -> List[str]:
+    def get_interests_by_category(category: str) -> Dict[str, List[str]]:
         """
         Retrives a list of all configured technical interests.
 
         Args:
-            None
+            A string specifying the category of interest to return
         Returns:
-            A list of all configured technical interests.
+            A list of all configured interests of the requested category.
         """
-        return {
-            "technical": [
-                interest.interest for interest in models.TechnicalInterest.select()
-            ]
-        }
+        interests = (
+            models.Interest.select(
+                models.Interest.interest, models.InterestType.interest_type
+            )
+            .join(
+                models.InterestType,
+            )
+            .where(models.InterestType.interest_type == category)
+        )
+        return {category: [interest.interest for interest in interests]}
 
     @staticmethod
-    def upsert_technical_interest(interest: str) -> int:
+    def upsert_interest(category: schema.InterestTypes, interest: str) -> int:
         """
-        Adds a new technical interest.
+        Adds a new interest.
 
         Args:
-            interest: A string specifying an interest to add
+            category: A string contining the category of the itnerest
+            interest: A string containing the value of the interest
         Returns:
             An integer indicating the ID of the interest.
         """
-        query = models.TechnicalInterest.insert(interest=interest).on_conflict(
-            conflict_target=[models.TechnicalInterest.interest],
-            preserve=[models.TechnicalInterest.interest],
-        )
+        cat = models.InterestType.get(models.InterestType.interest_type == category).id
+        query = models.Interest.insert(
+            interest=interest, interest_type=cat
+        ).on_conflict_ignore()
         return query.execute()
 
     @staticmethod
-    def delete_technical_interest(interest: str) -> int:
+    def delete_interest(interest: str) -> int:
         """
-        Deletes a techical interest.
+        Deletes an interest.
 
         Args:
             interest: A string specifying an interest to remove
@@ -786,61 +792,7 @@ class ResumeController:
             KeyError: The requested interest does not exist.
         """
         try:
-            item = models.TechnicalInterest.get(
-                models.TechnicalInterest.interest == interest
-            )
-            return item.delete_instance()
-        except DoesNotExist:
-            raise KeyError("The requested interest does not exist")
-
-    @staticmethod
-    def get_personal_interests() -> List[str]:
-        """
-        Retrieves a list of all configured personal interests.
-
-        Args:
-            None
-        Returns:
-            A list of all configured technical interests.
-        """
-        return {
-            "personal": [
-                interest.interest for interest in models.PersonalInterest.select()
-            ]
-        }
-
-    @staticmethod
-    def upsert_personal_interest(interest: str) -> int:
-        """
-        Add a new personal interest.
-
-        Args:
-            interest: A string containing the interest to add
-        Returns:
-            An integer indicating the ID of the new interest.
-        """
-        query = models.PersonalInterest.insert(interest=interest).on_conflict(
-            conflict_target=[models.PersonalInterest.interest],
-            preserve=[models.PersonalInterest.interest],
-        )
-        return query.execute()
-
-    @staticmethod
-    def delete_personal_interest(interest: str) -> int:
-        """
-        Removes a personal interest.
-
-        Args:
-            interest: A string specifying the interest to remove
-        Returns:
-            An integer indicating the number of interests affected by the operation.
-        Raises:
-            KeyError: The requested interest does not exist.
-        """
-        try:
-            item = models.PersonalInterest.get(
-                models.PersonalInterest.interest == interest
-            )
+            item = models.Interest.get(models.Interest.interest == interest)
             return item.delete_instance()
         except DoesNotExist:
             raise KeyError("The requested interest does not exist")
@@ -856,8 +808,8 @@ class ResumeController:
             A dict containing all interests.
         """
         return {
-            **ResumeController.get_personal_interests(),
-            **ResumeController.get_technical_interests(),
+            **ResumeController.get_interests_by_category("technical"),
+            **ResumeController.get_technical_by_category("personal"),
         }
 
     @staticmethod

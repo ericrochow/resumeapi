@@ -25,6 +25,16 @@ logger = logging.getLogger(__name__)
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
+    """
+    Validates a JWT token and identifies the currently-authenticated user.
+
+    Args:
+        token: A string containing a full JWT token.
+    Returns:
+        A string containing the username authenticated user.
+    Raises:
+        HttpException: Could not validate credentials.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -48,6 +58,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 async def get_current_active_user(
     current_user: schema.User = Depends(get_current_user),
 ):
+    """
+    Determines whether the currently-authenticated user is disabled or active.
+
+    Args:
+        current_user:
+    Returns:
+        The same object passed in.
+    Raises:
+        HttpException: The currently-active user is disabled.
+    """
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
@@ -59,11 +79,22 @@ async def get_current_active_user(
     description="Logs into the API to generate a token",
     response_description="Token info",
     response_model=schema.Token,
-    tags=["authentication"],
+    tags=["Authentication"],
 )
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+) -> Dict[str, str]:
+    """
+    Authenticates a user with Basic Auth and passes back a Bearer token.
+
+    Args:
+        form_data: An OAuth2PasswordRequest object containing Basic Auth credentials
+    Returns:
+        A dict containing the access token and token_type of "bearer".
+    Raises:
+        HttpException: Incorrect username or password.
+    """
     logger.debug("Attempting to log in as user %s", form_data.username)
-    # valid_user = auth_control.login(form_data.username, form_data.password)
     valid_user = auth_control.authenticate_user(form_data.username, form_data.password)
     if not valid_user:
         raise HTTPException(
@@ -79,13 +110,14 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+# GET methods for read-only operations
 @app.get(
     "/users",
     summary="List all users",
     description="Lists all users and whether the user is active",
     response_description="All users",
     response_model=schema.Users,
-    tags=["users"],
+    tags=["Users"],
 )
 async def get_all_users(current_user: schema.User = Depends(get_current_active_user)):
     return resume.get_all_users()
@@ -97,7 +129,7 @@ async def get_all_users(current_user: schema.User = Depends(get_current_active_u
     description="Returns info about the currently-authenticated user",
     response_description="User info",
     response_model=schema.User,
-    tags=["users"],
+    tags=["Users"],
 )
 async def read_users_me(current_user: schema.User = Depends(get_current_active_user)):
     return {"username": current_user.username, "disabled": current_user.disabled}
@@ -109,7 +141,7 @@ async def read_users_me(current_user: schema.User = Depends(get_current_active_u
     description="Gathers basic details about me, such as contact info, pronouns, etc",
     response_description="About Me",
     response_model=schema.BasicInfo,
-    tags=["basic_info"],
+    tags=["Basic Info"],
 )
 async def get_basic_info() -> Dict[str, List[Dict[str, str]]]:
     return resume.get_basic_info()
@@ -120,7 +152,7 @@ async def get_basic_info() -> Dict[str, List[Dict[str, str]]]:
     summary="Single basic info fact",
     description="Finds a single basic info fact about me based on the specified path",
     response_description="Requested basic info fact",
-    tags=["basic_info"],
+    tags=["Basic Info"],
 )
 async def get_basic_info_fact(fact: str) -> Dict[str, str]:
     try:
@@ -131,44 +163,13 @@ async def get_basic_info_fact(fact: str) -> Dict[str, str]:
         )
 
 
-@app.put(
-    "/basic_info",
-    summary="Creates or updates an existing fact",
-    # description="",
-    # response_description="",
-    tags=["basic_info"],
-)
-async def add_or_update_fact(
-    basic_fact: schema.BasicInfoItem = Body(...),
-    current_user: schema.User = Depends(get_current_active_user),
-):
-    return resume.upsert_basic_info_item(basic_fact)
-
-
-@app.delete(
-    "/basic_info/{fact}",
-    summary="Deletes an existing fact",
-    tags=["basic_info"],
-    status_code=204,
-)
-async def delete_fact(
-    fact: str, current_user: schema.User = Depends(get_current_active_user)
-):
-    try:
-        resume.delete_basic_info_item(fact)
-    except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": f"No such fact '{fact}'"}
-        )
-
-
 @app.get(
     "/education",
     summary="Education history",
     description="Finds my full education history",
     response_description="Education history",
     response_model=schema.EducationHistory,
-    tags=["education"],
+    tags=["Education"],
 )
 async def get_education() -> Dict[str, List[Dict[str, str]]]:
     return {"history": resume.get_all_education_history()}
@@ -181,7 +182,7 @@ async def get_education() -> Dict[str, List[Dict[str, str]]]:
     response_description="Education history item",
     response_model=schema.Education,
     responses={404: {"model": schema.Education}},
-    tags=["education"],
+    tags=["Education"],
 )
 async def get_education_item(index: int) -> Dict[str, str]:
     try:
@@ -198,7 +199,7 @@ async def get_education_item(index: int) -> Dict[str, str]:
     description="Finds my full post-undergrad job history",
     response_description="Job history",
     response_model=schema.JobHistory,
-    tags=["experience"],
+    tags=["Experience"],
 )
 async def get_experience() -> dict:
     return {"experience": resume.get_experience()}
@@ -211,7 +212,7 @@ async def get_experience() -> dict:
     response_description="Job history item",
     response_model=schema.Job,
     responses={404: {"model": schema.Job}},
-    tags=["experience"],
+    tags=["Experience"],
 )
 async def get_experience_item(index: int) -> dict:
     try:
@@ -230,7 +231,7 @@ async def get_experience_item(index: int) -> dict:
     ),
     response_description="Certifications",
     response_model=schema.CertificationHistory,
-    tags=["certifications"],
+    tags=["Certifications"],
 )
 async def get_certification_history(
     valid_only: Optional[bool] = False,
@@ -249,7 +250,7 @@ async def get_certification_history(
     response_description="Certification",
     response_model=schema.Certification,
     responses={404: {"model": schema.Certification}},
-    tags=["certifications"],
+    tags=["Certifications"],
 )
 async def get_certification_item(certification: str) -> dict:
     try:
@@ -267,7 +268,7 @@ async def get_certification_item(certification: str) -> dict:
     description="Finds a list of my highlighted side projects",
     response_description="Side projects",
     response_model=schema.SideProjects,
-    tags=["side_projects"],
+    tags=["Side Projects"],
 )
 async def get_side_projects() -> dict:
     return {"projects": resume.get_side_projects()}
@@ -278,7 +279,7 @@ async def get_side_projects() -> dict:
     summary="Single side project",
     description="Finds a single side side project specified in the path",
     response_description="Side project",
-    tags=["side_projects"],
+    tags=["Side Projects"],
 )
 async def get_side_project(project: str) -> Dict[str, str]:
     try:
@@ -295,35 +296,23 @@ async def get_side_project(project: str) -> Dict[str, str]:
     description="",
     response_description="",
     response_model=schema.Interests,
-    tags=["interests"],
+    tags=["Interests"],
 )
 async def get_all_interests() -> dict:
     return resume.get_all_interests()
 
 
 @app.get(
-    "/interests/technical",
-    summary="Technical interests",
-    description="Finds a list of career-related topics of interest to me",
-    response_description="Technical interests",
-    response_model=schema.TechnicalInterests,
-    tags=["interests"],
+    "/interests/{category}",
+    summary="",
+    response_description="",
+    response_model="",
+    tags=["Interests"],
 )
-async def get_technical_interests() -> dict:
-    return resume.get_technical_interests()
-
-
-@app.get(
-    "/interests/personal",
-    summary="Personal interests",
-    description="Finds a list of non-career-related topics of interest to me",
-    response_description="Personal interests",
-    response_model=schema.PersonalInterests,
-    tags=["interests"],
-)
-async def get_personal_interests() -> dict:
-    # return {"personal_interests": resume.get_personal_interests()}
-    return resume.get_personal_interests()
+async def get_interests_by_category(
+    category: schema.InterestTypes,
+) -> schema.Interests:
+    return resume.get_interests_by_category(category)
 
 
 @app.get(
@@ -332,7 +321,7 @@ async def get_personal_interests() -> dict:
     description="Finds a list of links to me on the web",
     response_description="Social links",
     response_model=schema.SocialLinks,
-    tags=["social"],
+    tags=["Social"],
 )
 async def get_social_links() -> Dict[str, str]:
     return resume.get_social_links()
@@ -343,7 +332,7 @@ async def get_social_links() -> Dict[str, str]:
     summary="Social link",
     description="Finds the social link specified in the path",
     response_description="Social link",
-    tags=["social"],
+    tags=["Social"],
 )
 async def get_social_link_by_key(platform=schema.SocialLinkEnum) -> Dict[str, str]:
     try:
@@ -360,7 +349,7 @@ async def get_social_link_by_key(platform=schema.SocialLinkEnum) -> Dict[str, st
     description="Finds a (non-comprehensive) list of skills and info about them",
     response_description="Skills",
     response_model=schema.Skills,
-    tags=["skills"],
+    tags=["Skills"],
 )
 async def get_skills() -> Dict[str, List[str]]:
     return resume.get_skills()
@@ -372,7 +361,7 @@ async def get_skills() -> Dict[str, List[str]]:
     description="Finds the skill specified in the path",
     response_description="Skill",
     response_model=schema.Skill,
-    tags=["skills"],
+    tags=["Skills"],
 )
 async def get_skill(skill: str) -> dict:
     try:
@@ -390,7 +379,7 @@ async def get_skill(skill: str) -> dict:
     description="Finds a list of general technical and non-technical skills",
     response_description="Competencies",
     response_model=schema.Competencies,
-    tags=["skills"],
+    tags=["Skills"],
 )
 async def get_competencies() -> Dict[str, List[str]]:
     return resume.get_competencies()
@@ -411,7 +400,7 @@ async def get_competencies() -> Dict[str, List[str]]:
 # return data.FULL_RESUME
 
 
-@app.get("/pdf", summary="", description="", response_description="", tags=["media"])
+@app.get("/pdf", summary="", description="", response_description="", tags=["Media"])
 async def get_resume_pdf() -> FileResponse:
     pdf = "ericrochowresume.pdf"
     try:
@@ -422,10 +411,302 @@ async def get_resume_pdf() -> FileResponse:
         )
 
 
-@app.get("/html", summary="", description="", response_description="", tags=["media"])
+@app.get("/html", summary="", description="", response_description="", tags=["Media"])
 async def get_resume_html() -> RedirectResponse:
     return RedirectResponse("https://resume.ericroc.how")
 
 
+# PUT methods for create and update operations
+@app.put(
+    "/basic_info",
+    summary="Creates or updates an existing fact",
+    # description="",
+    response_description="ID of the new or updated fact",
+    tags=["Basic Info"],
+)
+async def add_or_update_fact(
+    basic_fact: schema.BasicInfoItem = Body(...),
+    current_user: schema.User = Depends(get_current_active_user),
+) -> dict:
+    return resume.upsert_basic_info_item(basic_fact)
+
+
+@app.put(
+    "/education",
+    summary="Creates or updates an education item",
+    # description="",
+    response_description="ID of the new or updated education item",
+    tags=["Education"],
+)
+async def add_or_update_education(
+    education_item: schema.Education = Body(...),
+    current_user: schema.User = Depends(get_current_active_user),
+) -> dict:
+    return resume.upsert_education_item(education_item)
+
+
+@app.put(
+    "/experience",
+    summary="Creates or updates an experience item",
+    # description="",
+    response_description="ID of the new or updated experience item",
+    tags=["Experience"],
+)
+async def add_or_update_experience(
+    education_item: schema.Job = Body(...),
+    current_user: schema.User = Depends(get_current_active_user),
+) -> dict:
+    return resume.upsert_education_item(education_item)
+
+
+@app.put(
+    "/certifications",
+    summary="Creates or updates a certification",
+    # description="",
+    response_description="ID of the new or updated certification",
+    tags=["Certifications"],
+)
+async def add_or_update_certification(
+    certification: schema.Certification = Body(...),
+    current_user: schema.User = Depends(get_current_active_user),
+) -> dict:
+    return resume.upsert_education_item(certification)
+
+
+@app.put(
+    "/side_projects",
+    summary="Creates or updates a side project",
+    # description="",
+    response_description="ID of the new or updated side project",
+    tags=["Side Projects"],
+)
+async def add_or_update_side_project(
+    side_project: schema.SideProject = Body(...),
+    current_user: schema.User = Depends(get_current_active_user),
+) -> dict:
+    return resume.upsert_side_project(side_project)
+
+
+@app.put(
+    "/interests/{category}",
+    summary="Creates or updates an interest",
+    description="",
+    response_description="ID of the new or updated interest",
+    tags=["Interests"],
+)
+async def add_or_update_interest(
+    category: schema.InterestTypes,
+    interest: schema.Interest = Body(...),
+    current_user: schema.User = Depends(get_current_active_user),
+) -> int:
+    return resume.upsert_interest(category, interest.interest)
+
+
+@app.put(
+    "/social_links",
+    summary="Creates or updates a social link",
+    # description="",
+    response_description="",
+    tags=["Social"],
+)
+async def add_or_create_social_link(
+    social_link: schema.SocialLink,
+    current_user: schema.User = Depends(get_current_active_user),
+) -> int:
+    return resume.upsert_social_link(social_link)
+
+
+@app.put(
+    "/skills",
+    summary="Creates or updates a skill",
+    # description="",
+    response_description="ID of the new or updated skill",
+    tags=["Skills"],
+)
+async def add_or_update_skill(
+    skill: schema.Skill = Body(...),
+    current_user: schema.User = Depends(get_current_active_user),
+) -> int:
+    return resume.upsert_skill(skill)
+
+
+@app.put(
+    "/copetencies",
+    summary="Creates or updates a competencies",
+    # description="",
+    response_description="ID of the new or updated competency",
+    tags=["Skills"],
+)
+async def add_or_update_competency(
+    competency: schema.Competencies = Body(...),
+    current_user: schema.User = Depends(get_current_active_user),
+) -> int:
+    return resume.upsert_competency(competency)
+
+
+# DELETE methods for delete operations
+@app.delete(
+    "/basic_info/{fact}",
+    summary="Deletes an existing fact",
+    tags=["Basic Info"],
+    status_code=204,
+)
+async def delete_fact(
+    fact: str, current_user: schema.User = Depends(get_current_active_user)
+):
+    try:
+        resume.delete_basic_info_item(fact)
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"message": f"No such fact '{fact}'"}
+        )
+
+
+@app.delete(
+    "/education/{index}",
+    summary="Deletes an existing education history item",
+    tags=["Education"],
+    status_code=204,
+)
+async def delete_education_item(
+    index: int, current_user: schema.User = Depends(get_current_active_user)
+):
+    try:
+        resume.delete_education_item(index)
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"message": "No such eduction item exists"}
+        )
+
+
+@app.delete(
+    "/experience/{index}",
+    summary="Deletes an existing job history item",
+    tags=["Experience"],
+    status_code=204,
+)
+async def delete_experience_item(
+    index: int, current_user: schema.User = Depends(get_current_active_user)
+):
+    try:
+        resume.delete_experience_item(index)
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"message": "No such job history item exists"}
+        )
+
+
+@app.delete(
+    "/certifications/{certification}",
+    summary="Deletes an existing certification",
+    tags=["Certifications"],
+    status_code=204,
+)
+async def delete_certification(
+    certification: str, current_user: schema.User = Depends(get_current_active_user)
+):
+    try:
+        resume.delete_certification(certification)
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"message": "No such certification exists"}
+        )
+
+
+@app.delete(
+    "/side_projects/{project}",
+    summary="Deletes an existing side project",
+    tags=["Side Projects"],
+    status_code=204,
+)
+async def delete_side_project(
+    project: str, current_user: schema.User = Depends(get_current_active_user)
+):
+    try:
+        resume.delete_side_project(project)
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"message": "No such side project exists"}
+        )
+
+
+@app.delete(
+    "/interests/{interest}",
+    summary="Deletes an existing interest",
+    tags=["Interests"],
+    status_code=204,
+)
+async def delete_interest(
+    interest: str, current_user: schema.User = Depends(get_current_active_user)
+):
+    try:
+        resume.delete_interest(interest)
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"message": "No such interest exists"}
+        )
+
+
+@app.delete(
+    "/social_links/{platform}",
+    summary="Deletes an existing social link",
+    tags=["Social"],
+    status_code=204,
+)
+async def delete_social_link(
+    platform: str, current_user: schema.User = Depends(get_current_active_user)
+):
+    try:
+        resume.delete_social_link(platform)
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"message": "No such social link exists"}
+        )
+
+
+@app.delete(
+    "/skills/{skill}",
+    summary="Deletes an existing social link",
+    tags=["Skills"],
+    status_code=204,
+)
+async def delete_skill(
+    skill: str, current_user: schema.User = Depends(get_current_active_user)
+):
+    try:
+        resume.delete_skill(skill)
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"message": "No such skill exists"}
+        )
+
+
+@app.delete(
+    "/competencies/{competency}",
+    summary="Deletes an existing social link",
+    tags=["Skills"],
+    status_code=204,
+)
+async def delete_competency(
+    competency: str, current_user: schema.User = Depends(get_current_active_user)
+):
+    try:
+        resume.delete_competency(competency)
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"message": "No such competency exists"}
+        )
+
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", log_level="info", reload=True)
+    host = os.getenv("API_HOST", "127.0.0.1")
+    port = os.getenv("API_PORT", "8000")
+    log_level = os.getenv("API_LOG_LEVEL", "error")
+    reload_on_change = os.getenv("API_RELOAD_ON_CHANGE")
+    uvicorn.run(
+        "main:app",
+        host=host,
+        port=int(port),
+        log_level=log_level,
+        reload=(reload_on_change.title() == "True"),
+    )
