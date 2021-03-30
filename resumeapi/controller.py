@@ -17,9 +17,7 @@ import schema
 
 
 class AuthController:
-    """
-    Interact with authentication methods.
-    """
+    """Interact with authentication methods."""
 
     def __init__(self) -> None:
         load_dotenv()
