@@ -27,7 +27,7 @@ class AuthController:
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """
-        Verifies that the given password matches the hash stored in the database.
+        Verify that the given password matches the hash stored in the database.
 
         Args:
             plain_password: A string containing the plaintext password
@@ -39,7 +39,7 @@ class AuthController:
 
     def get_password_hash(self, password: str) -> str:
         """
-        Provides a bcrypt hash of the given plaintext password.
+        Provide a bcrypt hash of the given plaintext password.
 
         Args:
             password: A string containing a plain-text password to be hashed.
@@ -50,7 +50,7 @@ class AuthController:
 
     def get_user(self, username: str) -> models.User:
         """
-        Gets information about the requested user.
+        Get information about the requested user.
 
         Args:
             username: A string specifying the username of the user to look up.
@@ -66,7 +66,7 @@ class AuthController:
 
     def authenticate_user(self, username: str, password: str) -> models.User:
         """
-        Authenticates a user.
+        Authenticate a user.
 
         Args:
             username: A string containing the user's username
@@ -89,7 +89,7 @@ class AuthController:
         self, data: dict, expires_delta: Optional[timedelta] = None
     ) -> str:
         """
-        Creates an access token for a user.
+        Create an access token for a user.
 
         Args:
             data: A dict containing the username of the user whose token to generate
@@ -111,7 +111,7 @@ class AuthController:
         self, username: str, password: str, disabled: bool = False
     ) -> Model:
         """
-        Creates a new user in the database.
+        Create a new user in the database.
 
         Args:
             email: A string specifying the user's email address
@@ -130,7 +130,7 @@ class AuthController:
 
     def deactivate_user(self, username: str) -> None:
         """
-        Deactivates an existing user in the DB.
+        Deactivate an existing user in the DB.
 
         Args:
             username: A string specifying the username of the user to disable
@@ -160,7 +160,7 @@ class ResumeController:
     @staticmethod
     def get_all_users() -> List[Dict[str, str]]:
         """
-        Lists all configured users for auditing purposes.
+        List all configured users for auditing purposes.
 
         Args:
             None
@@ -179,7 +179,7 @@ class ResumeController:
     @staticmethod
     def get_basic_info() -> Dict[str, str]:
         """
-        Lists all configured basic info facts.
+        List all configured basic info facts.
 
         Args:
             None
@@ -195,7 +195,7 @@ class ResumeController:
     @staticmethod
     def get_basic_info_item(fact: str) -> Dict[str, str]:
         """
-        Finds the value of the requested basic value fact.
+        Find the value of the requested basic value fact.
 
         Args:
             fact: A string specifying the fact to look up (e.g. name)
@@ -213,7 +213,7 @@ class ResumeController:
     @staticmethod
     def upsert_basic_info_item(item: Dict[str, str]) -> int:
         """
-        Creates or updates an existing fact.
+        Create or update an existing fact.
 
         Args:
             item: A dict containing the name of the fact "fact" and the value "value"
@@ -230,7 +230,7 @@ class ResumeController:
     @staticmethod
     def delete_basic_info_item(fact: str) -> None:
         """
-        Deletes an existing fact.
+        Delete an existing fact.
 
         Args:
             fact: A string specifying the name of the fact
@@ -248,7 +248,7 @@ class ResumeController:
     @staticmethod
     def get_all_education_history() -> List[Dict[str, str]]:
         """
-        Retrieves all education history objects stored in the database.
+        Retrieve all education history objects stored in the database.
 
         Args:
             None
@@ -271,7 +271,7 @@ class ResumeController:
     @staticmethod
     def get_education_item(index: int) -> Dict[str, str]:
         """
-        Retrieves and education object by its id (index).
+        Retrieve and education object by its id (index).
 
         Args:
             index:
@@ -323,7 +323,7 @@ class ResumeController:
     @classmethod
     def get_experience(cls) -> List[Dict[str, str]]:
         """
-        Retrieves a list of previous jobs.
+        Retrieve a list of previous jobs.
 
         Args:
             None
@@ -340,7 +340,7 @@ class ResumeController:
     @staticmethod
     def get_experience_item(job_id: int) -> schema.Job:
         """
-        Retrieves details for previous job.
+        Retrieve details for previous job.
 
         Args:
             job_id: An integer specifying the ID of the experience item to return
@@ -395,7 +395,7 @@ class ResumeController:
     @staticmethod
     def delete_experience_item(index: int) -> int:
         """
-        Deletes a Job item by the given index (id).
+        Delete a Job item by the given index (id).
 
         Args:
             index: An integer specifying the ID of the job.
@@ -435,7 +435,7 @@ class ResumeController:
     @staticmethod
     def delete_job_detail(job_detail_id: int) -> int:
         """
-        Removes a job detail with the given ID.
+        Remove a job detail with the given ID.
 
         Args:
             job_detail_id: An integer specifying the ID of the job detail to remove
@@ -452,7 +452,7 @@ class ResumeController:
     @staticmethod
     def upsert_job_highlight(job_highlight: schema.JobHighlight) -> int:
         """
-        Creates or updates a job highlight.
+        Create or updates a job highlight.
 
         Args:
             job_highlight: A JobHighlight model
@@ -476,7 +476,7 @@ class ResumeController:
     @staticmethod
     def delete_job_highlight(job_highlight_id: int) -> int:
         """
-        Removes a job highlight with the given ID.
+        Remove a job highlight with the given ID.
 
         Args:
             job_highlight_id: An integer specifying the ID of the job highlight to
@@ -494,7 +494,7 @@ class ResumeController:
     @staticmethod
     def get_all_preferences() -> schema.Preferences:
         """
-        Retrieves all preferences stored in the database.
+        Retrieve all preferences stored in the database.
 
         Args:
             None
@@ -510,7 +510,7 @@ class ResumeController:
     @staticmethod
     def get_preference(preference: str) -> str:
         """
-        Retrieves the value of a specified preference.
+        Retrieve the value of a specified preference.
 
         Args:
             preference: A string specifying the title of a preference (e.g. `OS`)
@@ -528,7 +528,7 @@ class ResumeController:
     @staticmethod
     def upsert_preference(preference: schema.Preferences) -> int:
         """
-        Creates or updates an existing preference.
+        Create or updates an existing preference.
 
         Args:
             preference: A dict containing a preference and its value
@@ -547,7 +547,7 @@ class ResumeController:
     @staticmethod
     def delete_preference(preference: str) -> int:
         """
-        Deletes a preference item.
+        Delete a preference item.
 
         Args:
             preference: A string specifying the preference to be deleted
@@ -565,8 +565,9 @@ class ResumeController:
     @staticmethod
     def get_certifications(valid_only: bool = False) -> schema.CertificationHistory:
         """
-        Retrieves all configured certifications (or optionally only currently-valid
-            certifications).
+        Retrieve all configured certifications.
+
+        Can optionally filter to only currently-valid certifications.
 
         Args:
             valid_only: A boolean specifying whether to limit the results to only
@@ -595,7 +596,7 @@ class ResumeController:
     @staticmethod
     def get_certification_by_name(certification: str) -> schema.Certification:
         """
-        Retrieves information about a specified certification.
+        Retrieve information about a specified certification.
 
         Args:
             certification: A string specifying the name of the certification
@@ -620,7 +621,7 @@ class ResumeController:
     @staticmethod
     def upsert_certification(certification: schema.Certification) -> int:
         """
-        Creates or updates a certification.
+        Create or update a certification.
 
         Args:
             certification: A Certification object
@@ -648,7 +649,7 @@ class ResumeController:
     @staticmethod
     def delete_certification(cert: str) -> int:
         """
-        Removes a certification by its name.
+        Remove a certification by its name.
 
         Args
             cert: A string specifying the certification to remove
@@ -667,7 +668,7 @@ class ResumeController:
     @staticmethod
     def get_side_projects() -> schema.SideProjects:
         """
-        Retrieves information about all side projects stored in the DB.
+        Retrieve information about all side projects stored in the DB.
 
         Args:
             None
@@ -683,7 +684,7 @@ class ResumeController:
     @staticmethod
     def get_side_project(project: str) -> schema.SideProject:
         """
-        Retrieves information about the requested side project.
+        Retrieve information about the requested side project.
 
         Args:
             project: A string specifying the title of the project to look up
@@ -726,7 +727,7 @@ class ResumeController:
     @staticmethod
     def delete_side_project(title: str) -> int:
         """
-        Deletes a side project given the title of the project.
+        Delete a side project given the title of the project.
 
         Args:
             title: A string specifying the title of the project.
@@ -744,7 +745,7 @@ class ResumeController:
     @staticmethod
     def get_interests_by_category(category: str) -> Dict[str, List[str]]:
         """
-        Retrives a list of all configured technical interests.
+        Retrive a list of all configured technical interests.
 
         Args:
             A string specifying the category of interest to return
@@ -765,7 +766,7 @@ class ResumeController:
     @staticmethod
     def upsert_interest(category: schema.InterestTypes, interest: str) -> int:
         """
-        Adds a new interest.
+        Add a new interest.
 
         Args:
             category: A string contining the category of the itnerest
@@ -782,7 +783,7 @@ class ResumeController:
     @staticmethod
     def delete_interest(interest: str) -> int:
         """
-        Deletes an interest.
+        Delete an interest.
 
         Args:
             interest: A string specifying an interest to remove
@@ -800,7 +801,7 @@ class ResumeController:
     @classmethod
     def get_all_interests(cls) -> Dict[str, List[str]]:
         """
-        Retrieves all interests personal and technical.
+        Retrieve all interests personal and technical.
 
         Args:
             None
@@ -815,7 +816,7 @@ class ResumeController:
     @staticmethod
     def get_social_links() -> schema.SocialLinks:
         """
-        Retrieves all social links.
+        Retrieve all social links.
 
         Args:
             None
@@ -831,7 +832,7 @@ class ResumeController:
     @staticmethod
     def get_social_link(platform: str) -> schema.SocialLink:
         """
-        Retrives a link to the requested social platform.
+        Retrive a link to the requested social platform.
 
         Args:
             platform: A string specifying the desired social platform whose link to
@@ -850,7 +851,7 @@ class ResumeController:
     @staticmethod
     def upsert_social_link(social_link: schema.SocialLink) -> int:
         """
-        Adds or updates a social link.
+        Add or update a social link.
 
         Args:
             social_link: A SocialLink object containing the name of the platform and a
@@ -870,7 +871,7 @@ class ResumeController:
     @staticmethod
     def delete_social_link(platform: str):
         """
-        Removes a social link given the platform.
+        Remove a social link given the platform.
 
         Args:
             platform: A string specifying the social platform to remove
@@ -888,7 +889,7 @@ class ResumeController:
     @staticmethod
     def get_skills() -> Dict[str, List[Dict[str, str]]]:
         """
-        Retrives a list of all configured skills.
+        Retrive a list of all configured skills.
 
         Args:
             None
@@ -905,7 +906,7 @@ class ResumeController:
     @staticmethod
     def get_skill(skill: str) -> schema.Skill:
         """
-        Retrieves details about the requested skill.
+        Retrieve details about the requested skill.
 
         Args:
             skill: A string specifying the desired skill
@@ -923,7 +924,7 @@ class ResumeController:
     @staticmethod
     def upsert_skill(skill: schema.Skill) -> int:
         """
-        Creates a new skill or updates an existing skill.
+        Create a new skill or updates an existing skill.
 
         Args:
             skill: A Skill object specifying the name of the skill and the skill level.
@@ -940,7 +941,7 @@ class ResumeController:
     @staticmethod
     def delete_skill(skill: str) -> int:
         """
-        Deletes a Skill.
+        Delete a Skill.
 
         Args:
             skill: A string indicating the name of the skill to remove.
@@ -958,7 +959,7 @@ class ResumeController:
     @staticmethod
     def get_competencies() -> Dict[str, List[str]]:
         """
-        Retrieves a list of configured competencies.
+        Retrieve a list of configured competencies.
 
         Args:
             None
@@ -972,7 +973,7 @@ class ResumeController:
     @staticmethod
     def upsert_competency(competency: str) -> int:
         """
-        Creates a new competency.
+        Create a new competency.
 
         Args:
             competency: A string specifying the competency
@@ -985,7 +986,7 @@ class ResumeController:
     @staticmethod
     def delete_competency(competency: str) -> int:
         """
-        Removes a competency string.
+        Remove a competency string.
 
         Args:
             competency: A string specifying the competency to remove.
