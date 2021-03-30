@@ -17,6 +17,10 @@ import schema
 
 
 class AuthController:
+    """
+    Interact with authentication methods.
+    """
+
     def __init__(self) -> None:
         load_dotenv()
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -154,6 +158,8 @@ class AuthController:
 
 
 class ResumeController:
+    """Interact with resume methods."""
+
     def __init__(self) -> None:
         pass
 
@@ -295,7 +301,14 @@ class ResumeController:
 
     @staticmethod
     def upsert_education_item(edu: schema.Education) -> int:
-        """"""
+        """
+        Create or update an education item.
+
+        Args:
+            edu: An Education schema object
+        Returns:
+            An integer indicating the ID of the new or updated education item.
+        """
         query = models.Education.insert(
             institution=edu.institution,
             degree=edu.degree,
@@ -313,7 +326,16 @@ class ResumeController:
 
     @staticmethod
     def delete_education_item(index: int) -> None:
-        """"""
+        """
+        Delete an existing education item.
+
+        Args:
+            index: An integer indicating the ID of the education items to delete
+        Returns:
+            An integer indicating the number of records impacted by the operation.
+        Raises:
+            KeyError: No item exists at this index.
+        """
         try:
             item = models.Education.get_by_id(index)
             item.delete_instance()
@@ -375,7 +397,14 @@ class ResumeController:
 
     @staticmethod
     def upsert_experience_item(job: schema.Job) -> int:
-        """"""
+        """
+        Create or update an experience item.
+
+        Args:
+            job: A Job schema model object
+        Returns:
+            An integer indicating the ID of the new or updated experience item.
+        """
         query = models.Education.insert(
             employer=job.employer,
             employer_summary=job.summary,
