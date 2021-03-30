@@ -12,22 +12,8 @@ from jose import jwt
 from peewee import DoesNotExist, Model
 from passlib.context import CryptContext
 
-from models import (
-    BasicInfo,
-    Certification,
-    Competency,
-    Education,
-    Job,
-    PersonalInterest,
-    Preference,
-    SideProject,
-    Skill,
-    SocialLink,
-    TechnicalInterest,
-    User as UserModel,
-)
-
-from schema import User
+import models
+import schema
 
 
 class AuthController:
@@ -62,7 +48,7 @@ class AuthController:
         """
         return self.pwd_context.hash(password)
 
-    def get_user(self, username: str) -> UserModel:
+    def get_user(self, username: str) -> models.User:
         """
         Gets information about the requested user.
 
@@ -74,11 +60,11 @@ class AuthController:
             KeyError: No such user exists.
         """
         try:
-            return UserModel.get(UserModel.username == username)
+            return models.User.get(models.User.username == username)
         except DoesNotExist:
             raise KeyError("No such user exists")
 
-    def authenticate_user(self, username: str, password: str) -> UserModel:
+    def authenticate_user(self, username: str, password: str) -> models.User:
         """
         Authenticates a user.
 
@@ -92,7 +78,7 @@ class AuthController:
         """
         with suppress(DoesNotExist):
             self.logger.debug("Looking for user %s", username)
-            user = UserModel.get(UserModel.username == username)
+            user = models.User.get(models.User.username == username)
             self.logger.debug("User %s found", user.username)
             if self.verify_password(password, user.password) and not user.disabled:
                 self.logger.info("Successful authentication")
@@ -135,7 +121,7 @@ class AuthController:
         Returns:
             An object of the User class.
         """
-        user = User.create(
+        user = schema.User.create(
             username=username.lower(),
             password=self.get_password_hash(password),
             disabled=disabled,
@@ -155,7 +141,7 @@ class AuthController:
         """
         self.logger.info("Attempting to deactivate user %s", username)
         try:
-            user = UserModel.get(UserModel.username == username.lower())
+            user = models.User.get(models.User.username == username.lower())
             user.disabled = True
             user.save()
             self.logger.info("Successfully deactivated user %s", username)
@@ -185,7 +171,7 @@ class ResumeController:
         users = {
             "users": [
                 {"username": user.username, "disabled": user.disabled}
-                for user in UserModel.select()
+                for user in models.User.select()
             ]
         }
         return users
@@ -200,7 +186,7 @@ class ResumeController:
         Returns:
             A dict containing each fact as a key/value pair.
         """
-        info = BasicInfo.select()
+        info = models.BasicInfo.select()
         resp = {}
         for i in info:
             resp[i.fact] = i.value
@@ -219,7 +205,7 @@ class ResumeController:
             KeyError: The requested fact does not exist.
         """
         try:
-            info = BasicInfo.get(BasicInfo.fact == fact)
+            info = models.BasicInfo.get(models.BasicInfo.fact == fact)
             return {info.fact: info.value}
         except DoesNotExist:
             raise KeyError("Fact does not exist in the DB.")
@@ -234,10 +220,10 @@ class ResumeController:
         Returns:
             An integer specifying the ID of the key/value pair.
         """
-        query = BasicInfo.insert(fact=item.fact, value=item.value).on_conflict(
-            conflict_target=[BasicInfo.fact],
-            preserve=[BasicInfo.fact],
-            update={BasicInfo.value: item.value},
+        query = models.BasicInfo.insert(fact=item.fact, value=item.value).on_conflict(
+            conflict_target=[models.BasicInfo.fact],
+            preserve=[models.BasicInfo.fact],
+            update={models.BasicInfo.value: item.value},
         )
         return query.execute()
 
@@ -254,7 +240,7 @@ class ResumeController:
             KeyError: The fact does not exist in the DB.
         """
         try:
-            item = BasicInfo.get(BasicInfo.fact == fact)
+            item = models.BasicInfo.get(models.BasicInfo.fact == fact)
             return item.delete_instance()
         except DoesNotExist:
             raise KeyError("The requested fact does not exist")
@@ -269,11 +255,11 @@ class ResumeController:
         Returns:
             A list of all education history objects.
         """
-        education = Education.select()
+        education = models.Education.select()
         history = []
         for edu in education:
             e = {
-                "edu_id": edu.id,
+                "id": edu.id,
                 "institution": edu.institution,
                 "degree": edu.degree,
                 "graduation_date": edu.graduation_date,
@@ -295,8 +281,9 @@ class ResumeController:
             IndexError: No item exists at this index.
         """
         try:
-            edu = Education.get_by_id(index)
+            edu = models.Education.get_by_id(index)
             e = {
+                "id": edu.id,
                 "institution": edu.institution,
                 "degree": edu.degree,
                 "graduation_date": edu.graduation_date,
@@ -307,19 +294,19 @@ class ResumeController:
             raise IndexError("No item exists at this index.")
 
     @staticmethod
-    def upsert_education_item(edu: Dict[str, str]) -> int:
+    def upsert_education_item(edu: schema.Education) -> int:
         """"""
-        query = Education.insert(
+        query = models.Education.insert(
             institution=edu.institution,
             degree=edu.degree,
             graduation_date=edu.graduation_date,
             gpa=edu.gpa,
         ).on_conflict(
-            conflict_target=[Education.institution, Education.degree],
-            preserve=[Education.institution, Education.degree],
+            conflict_target=[models.Education.institution, models.Education.degree],
+            preserve=[models.Education.institution, models.Education.degree],
             update={
-                Education.graduation_date: edu.graduation_date,
-                Education.gpa: edu.gpa,
+                models.Education.graduation_date: edu.graduation_date,
+                models.Education.gpa: edu.gpa,
             },
         )
         return query.execute()
@@ -328,7 +315,7 @@ class ResumeController:
     def delete_education_item(index: int) -> None:
         """"""
         try:
-            item = Education.get_by_id(index)
+            item = models.Education.get_by_id(index)
             item.delete_instance()
         except DoesNotExist:
             raise IndexError("No item exists at this index.")
@@ -344,28 +331,28 @@ class ResumeController:
             A list of previous jobs and their related details.
         """
         resp = []
-        jobs = Job.select()
+        jobs = models.Job.select()
         for job in jobs:
             j = ResumeController.get_experience_item(job.id)
             resp.append(j)
         return resp
 
     @staticmethod
-    def get_experience_item(job_id: int) -> Dict[str, str]:
+    def get_experience_item(job_id: int) -> schema.Job:
         """
         Retrieves details for previous job.
 
         Args:
-            job_id
+            job_id: An integer specifying the ID of the experience item to return
         Returns:
             A dict containing the details of the job.
         """
         try:
-            exp = Job.get_by_id(job_id)
+            exp = models.Job.get_by_id(job_id)
         except DoesNotExist:
             raise IndexError("No such experience exists in the DB.")
         resp = {
-            "job_id": exp.id,
+            "id": exp.id,
             "employer": exp.employer,
             "employer_summary": exp.employer_summary,
             "location": exp.location,
@@ -376,57 +363,136 @@ class ResumeController:
         }
         with suppress(DoesNotExist):
             for detail in exp.details:
-                resp["details"].append(detail.detail)
+                resp["details"].append(
+                    {"id": detail.get_id(), "detail": detail.detail}
+                )
         with suppress(DoesNotExist):
             for hl in exp.highlights:
-                resp["highlights"].append(hl.highlight)
+                resp["highlights"].append(
+                    {"id": hl.get_id(), "highlight": hl.highlight}
+                )
         return resp
 
     @staticmethod
-    def upsert_experience_item(job: Dict[str, str]) -> int:
+    def upsert_experience_item(job: schema.Job) -> int:
         """"""
-        query = Education.insert(
+        query = models.Education.insert(
             employer=job.employer,
             employer_summary=job.summary,
             location=job.location,
             job_title=job.job_title,
             job_summary=job.job_summary,
         ).on_conflict(
-            conflict_target=[Job.employer, Job.job_title],
-            preserve=[Job.employer, Job.location, Job.job_title],
+            conflict_target=[models.Job.employer, models.Job.job_title],
+            preserve=[models.Job.employer, models.Job.location, models.Job.job_title],
             update={
-                Job.employer_summary: job.employer_summary,
-                Job.job_summary: job.job_summary,
+                models.Job.employer_summary: job.employer_summary,
+                models.Job.job_summary: job.job_summary,
             },
         )
         return query.execute()
 
     @staticmethod
-    def delete_experience_item(index: int):
+    def delete_experience_item(index: int) -> int:
+        """
+        Deletes a Job item by the given index (id).
+
+        Args:
+            index: An integer specifying the ID of the job.
+        Returns:
+            An integer specifying the number of rows impacted by the operation.
+        Raises:
+            IndexError: No such item exists at this index.
+        """
         try:
-            item = Job.get_by_id(index)
-            item.delete_instance()
+            item = models.Job.get_by_id(index)
+            return item.delete_instance()
         except DoesNotExist:
             raise IndexError("No item exists at this index.")
 
     @staticmethod
-    def upsert_job_detail():
-        pass
+    def upsert_job_detail(job_detail: schema.JobDetail) -> int:
+        """
+        Create a new job detail.
+
+        Args:
+            job_detail: A JobDetail object
+        Returns:
+            An integer indicating the ID of the newly-created job detail.
+        """
+        query = models.JobDetail.insert(
+            id=job_detail.id, detail=job_detail.detail, job=job_detail.job
+        ).on_conflict(
+            conflict_target=[models.JobDetail.id],
+            preserve=[models.JobDetail.id],
+            update={
+                models.JobDetail.detail: job_detail.job_detail,
+                models.JobDetail.job: job_detail.job,
+            },
+        )
+        return query.execute()
 
     @staticmethod
-    def delete_job_detail():
-        pass
+    def delete_job_detail(job_detail_id: int) -> int:
+        """
+        Removes a job detail with the given ID.
+
+        Args:
+            job_detail_id: An integer specifying the ID of the job detail to remove
+        Returns:
+            An integer indicating the number of job detail records impacted by the
+                operation.
+        """
+        try:
+            item = models.BasicInfo.get_by_id(job_detail_id)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested job detail does not exist")
 
     @staticmethod
-    def upsert_job_highlight():
-        pass
+    def upsert_job_highlight(job_highlight: schema.JobHighlight) -> int:
+        """
+        Creates or updates a job highlight.
+
+        Args:
+            job_highlight: A JobHighlight model
+        Returns:
+            An integer specifying the ID of the job highlight.
+        """
+        query = models.JobHighlight.insert(
+            id=job_highlight.id,
+            highlight=job_highlight.job_highlight,
+            job=job_highlight.job,
+        ).on_conflict(
+            conflict_target=[models.JobHighlight.id],
+            preserve=[models.JobHighlight.id],
+            update={
+                models.JobHighlight.highlight: job_highlight.job_highlight,
+                models.JobHighlight.job: job_highlight.job,
+            },
+        )
+        return query.execute()
 
     @staticmethod
-    def delete_job_highlight():
-        pass
+    def delete_job_highlight(job_highlight_id: int) -> int:
+        """
+        Removes a job highlight with the given ID.
+
+        Args:
+            job_highlight_id: An integer specifying the ID of the job highlight to
+                remove
+        Returns:
+            An integer indicating the number of job highlight records affected by the
+                operation.
+        """
+        try:
+            item = models.BasicInfo.get_by_id(job_highlight_id)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested job highlight does not exist")
 
     @staticmethod
-    def get_all_preferences() -> Dict[str, str]:
+    def get_all_preferences() -> schema.Preferences:
         """
         Retrieves all preferences stored in the database.
 
@@ -435,11 +501,11 @@ class ResumeController:
         Returns:
             A dict containing the k/v pairs of all preferences and values.
         """
-        prefs = Preference.select()
+        prefs = models.Preference.select()
         resp = {}
         for pref in prefs:
             resp[pref.preference] = pref.value
-        return prefs
+        return resp
 
     @staticmethod
     def get_preference(preference: str) -> str:
@@ -454,37 +520,50 @@ class ResumeController:
             KeyError: No value for the given preference is stored in the DB.
         """
         try:
-            pref = Preference.get(Preference.preference == preference)
+            pref = models.Preference.get(models.Preference.preference == preference)
             return pref.value
         except DoesNotExist:
             raise KeyError(f"No value for {preference} stored in the DB.")
 
     @staticmethod
-    def add_preference(preference: str, value: str) -> Dict[str, str]:
+    def upsert_preference(preference: schema.Preferences) -> int:
         """
-        Adds a new preference to the preferences list.
+        Creates or updates an existing preference.
 
         Args:
-            preference: A string specifying the title of the preference (e.g. `OS`)
-            value: A string specifying the preference itself (e.g. `Arch Linux`)
+            preference: A dict containing a preference and its value
         Returns:
-            A dict containing the DB values of prefrerence and value as well as whether
-                the DB entry needed to be created (i.e. whether the pref/value pair
-                did not exist).
+            An integer specifying the ID of the preference object.
         """
-        pref, created = Preference.get_or_create(preference=preference, value=value)
-        return {"preference": pref.preference, "value": pref.value, "created": created}
+        query = models.Preference.insert(
+            preference=preference.preference, value=preference.value
+        ).on_conflict(
+            conflict_target=[models.Preference.preference],
+            preserve=[models.Preference.preference],
+            update={models.Preference.value: preference.value},
+        )
+        return query.execute()
 
     @staticmethod
-    def upsert_preference():
-        pass
+    def delete_preference(preference: str) -> int:
+        """
+        Deletes a preference item.
+
+        Args:
+            preference: A string specifying the preference to be deleted
+        Returns:
+            An integer specifying the number of rows modified.
+        Raises:
+            KeyError: The requested preference does not exist.
+        """
+        try:
+            item = models.Preference.get(models.Preference.preference == preference)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested preference does not exist")
 
     @staticmethod
-    def delete_preference():
-        pass
-
-    @staticmethod
-    def get_certifications(valid_only: bool = False) -> List[Dict[str, str]]:
+    def get_certifications(valid_only: bool = False) -> schema.CertificationHistory:
         """
         Retrieves all configured certifications (or optionally only currently-valid
             certifications).
@@ -496,9 +575,11 @@ class ResumeController:
             A list of certifications and their info.
         """
         if valid_only:
-            certifications = Certification.select().where(Certification.valid)
+            certifications = models.Certification.select().where(
+                models.Certification.valid
+            )
         else:
-            certifications = Certification.select()
+            certifications = models.Certification.select()
         resp = []
         for c in certifications:
             cert = {
@@ -512,7 +593,7 @@ class ResumeController:
         return resp
 
     @staticmethod
-    def get_certification_by_name(certification: str) -> Dict[str, str]:
+    def get_certification_by_name(certification: str) -> schema.Certification:
         """
         Retrieves information about a specified certification.
 
@@ -524,7 +605,7 @@ class ResumeController:
             KeyError: The certification does not exist in the DB.
         """
         try:
-            c = Certification.get(Certification.cert == certification)
+            c = models.Certification.get(models.Certification.cert == certification)
             resp = {
                 "cert": c.cert,
                 "full_name": c.full_name,
@@ -537,15 +618,54 @@ class ResumeController:
             raise KeyError("Certification not implemented in the DB.")
 
     @staticmethod
-    def upsert_certification():
-        pass
+    def upsert_certification(certification: schema.Certification) -> int:
+        """
+        Creates or updates a certification.
+
+        Args:
+            certification: A Certification object
+        Returns:
+            An integer indicating the ID of the certification object.
+        """
+        query = models.Certification.insert(
+            cert=certification.cert,
+            full_name=certification.full_name,
+            time=certification.time,
+            valid=certification.valid,
+            progress=certification.progress,
+        ).on_conflict(
+            conflict_target=[models.Certification.cert],
+            preserve=[models.Certification.cert],
+            update={
+                models.Certification.full_name: certification.full_name,
+                models.Certification.time: certification.time,
+                models.Certification.valid: certification.valid,
+                models.Certification.progress: certification.valid,
+            },
+        )
+        return query.execute()
 
     @staticmethod
-    def delete_certification():
-        pass
+    def delete_certification(cert: str) -> int:
+        """
+        Removes a certification by its name.
+
+        Args
+            cert: A string specifying the certification to remove
+        Returns:
+            An integer indicating the number of certifications impacted by the
+                operation.
+        Raises:
+            KeyError: The requested certification does not exist
+        """
+        try:
+            item = models.Certification.get(models.Certification.cert == cert)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested certification does not exist")
 
     @staticmethod
-    def get_side_projects() -> List[Dict[str, str]]:
+    def get_side_projects() -> schema.SideProjects:
         """
         Retrieves information about all side projects stored in the DB.
 
@@ -554,15 +674,14 @@ class ResumeController:
         Returns:
             A list with info about each configured side project.
         """
-        projects = SideProject.select()
-        resp = []
-        for p in projects:
-            project = {"title": p.title, "tagline": p.tagline, "link": p.link}
-            resp.append(project)
+        projects = models.SideProject.select()
+        resp = [
+            {"title": p.title, "tagline": p.tagline, "link": p.link} for p in projects
+        ]
         return resp
 
     @staticmethod
-    def get_side_project(project: str) -> Dict[str, str]:
+    def get_side_project(project: str) -> schema.SideProject:
         """
         Retrieves information about the requested side project.
 
@@ -574,74 +693,127 @@ class ResumeController:
             KeyError: The requested project does not exist in the DB.
         """
         try:
-            p = SideProject.get(SideProject.title == project)
+            p = models.SideProject.get(models.SideProject.title == project)
             resp = {"title": p.title, "tagline": p.tagline, "link": p.link}
             return resp
         except DoesNotExist:
             raise KeyError("The requested project does not exist.")
 
     @staticmethod
-    def upsert_side_project():
-        pass
+    def upsert_side_project(side_project: schema.SideProjects) -> int:
+        """
+        Insert or update project depending on whether it already has an entry.
+
+        Args:
+            side_project: A dictionary containing the details of the side project
+        Returns:
+            An integer indicating the ID of the side proect entry.
+        """
+        query = models.SideProject.insert(
+            title=side_project.title,
+            tagline=side_project.tagline,
+            link=side_project.link,
+        ).on_conflict(
+            conflict_target=[models.SideProject.title],
+            preserve=[models.SideProject.title],
+            update={
+                models.SideProject.tagline: side_project.tagline,
+                models.SideProject.link: side_project.link,
+            },
+        )
+        return query.execute()
 
     @staticmethod
-    def delete_side_project():
-        pass
+    def delete_side_project(title: str) -> int:
+        """
+        Deletes a side project given the title of the project.
+
+        Args:
+            title: A string specifying the title of the project.
+        Returns:
+            An integer indicating the number of affected entries.
+        Raises:
+            KeyError: The requested side project does not exist.
+        """
+        try:
+            item = models.SideProject.get(models.SideProject.title == title)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested side project does not exist")
 
     @staticmethod
-    def get_technical_interests() -> List[str]:
+    def get_interests_by_category(category: str) -> Dict[str, List[str]]:
         """
         Retrives a list of all configured technical interests.
 
         Args:
-            None
+            A string specifying the category of interest to return
         Returns:
-            A list of all configured technical interests.
+            A list of all configured interests of the requested category.
         """
-        return {
-            "technical": [interest.interest for interest in TechnicalInterest.select()]
-        }
+        interests = (
+            models.Interest.select(
+                models.Interest.interest, models.InterestType.interest_type
+            )
+            .join(
+                models.InterestType,
+            )
+            .where(models.InterestType.interest_type == category)
+        )
+        return {category: [interest.interest for interest in interests]}
 
     @staticmethod
-    def upsert_technical_interest():
-        pass
-
-    @staticmethod
-    def delete_technical_interest():
-        pass
-
-    @staticmethod
-    def get_personal_interests() -> List[str]:
+    def upsert_interest(category: schema.InterestTypes, interest: str) -> int:
         """
-        Retrieves a list of all configured personal interests.
+        Adds a new interest.
 
         Args:
-            None
+            category: A string contining the category of the itnerest
+            interest: A string containing the value of the interest
         Returns:
-            A list of all configured technical interests.
+            An integer indicating the ID of the interest.
         """
-        return {
-            "personal": [interest.interest for interest in PersonalInterest.select()]
-        }
+        cat = models.InterestType.get(models.InterestType.interest_type == category).id
+        query = models.Interest.insert(
+            interest=interest, interest_type=cat
+        ).on_conflict_ignore()
+        return query.execute()
 
     @staticmethod
-    def upsert_personal_interest():
-        pass
+    def delete_interest(interest: str) -> int:
+        """
+        Deletes an interest.
 
-    @staticmethod
-    def delete_personal_interest():
-        pass
+        Args:
+            interest: A string specifying an interest to remove
+        Returns:
+            An integer indicating the number of interests affected by the operation.
+        Raises:
+            KeyError: The requested interest does not exist.
+        """
+        try:
+            item = models.Interest.get(models.Interest.interest == interest)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested interest does not exist")
 
     @classmethod
     def get_all_interests(cls) -> Dict[str, List[str]]:
-        """"""
+        """
+        Retrieves all interests personal and technical.
+
+        Args:
+            None
+        Retrns:
+            A dict containing all interests.
+        """
         return {
-            **ResumeController.get_personal_interests(),
-            **ResumeController.get_technical_interests(),
+            **ResumeController.get_interests_by_category("technical"),
+            **ResumeController.get_technical_by_category("personal"),
         }
 
     @staticmethod
-    def get_social_links() -> Dict[str, str]:
+    def get_social_links() -> schema.SocialLinks:
         """
         Retrieves all social links.
 
@@ -650,14 +822,14 @@ class ResumeController:
         Returns:
             A dict containing a link to all configured social platforms.
         """
-        links = SocialLink.select()
-        resp = {}
+        links = models.SocialLink.select()
+        resp = []
         for link in links:
-            resp[link.platform] = link.link
+            resp.append({"platform": link.platform, "link": link.link})
         return resp
 
     @staticmethod
-    def get_social_link(platform: str) -> Dict[str, str]:
+    def get_social_link(platform: str) -> schema.SocialLink:
         """
         Retrives a link to the requested social platform.
 
@@ -670,18 +842,48 @@ class ResumeController:
             KeyError: The requested platform is not configured.
         """
         try:
-            link = SocialLink.get(SocialLink.platform == platform)
-            return {platform: link.link}
+            link = models.SocialLink.get(models.SocialLink.platform == platform)
+            return {"platform": link.platform, "link": link.link}
         except DoesNotExist:
             raise KeyError("The requested platform is not configured")
 
     @staticmethod
-    def upsert_social_link():
-        pass
+    def upsert_social_link(social_link: schema.SocialLink) -> int:
+        """
+        Adds or updates a social link.
+
+        Args:
+            social_link: A SocialLink object containing the name of the platform and a
+                link to the user's account on that platform
+        Returns:
+            An integer indicating the ID of the SocialLink object.
+        """
+        query = models.BasicInfo.insert(
+            platform=social_link.platform, link=social_link.link
+        ).on_conflict(
+            conflict_target=[models.SocialLink.platform],
+            preserve=[models.SocialLink.platform],
+            update={models.SocialLink.link: social_link.link},
+        )
+        return query.execute()
 
     @staticmethod
-    def delete_social_link():
-        pass
+    def delete_social_link(platform: str):
+        """
+        Removes a social link given the platform.
+
+        Args:
+            platform: A string specifying the social platform to remove
+        Returns:
+            An integer specifying the number of affected social links.
+        Returns:
+            KeyError: The requested platform does not exist.
+        """
+        try:
+            item = models.BasicInfo.get(models.SocialLink.platform == platform)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested platform does not exist")
 
     @staticmethod
     def get_skills() -> Dict[str, List[Dict[str, str]]]:
@@ -696,12 +898,12 @@ class ResumeController:
         return {
             "skills": [
                 {"skill": skill.skill, "level": skill.level}
-                for skill in Skill.select()
+                for skill in models.Skill.select()
             ]
         }
 
     @staticmethod
-    def get_skill(skill: str) -> Dict[str, str]:
+    def get_skill(skill: str) -> schema.Skill:
         """
         Retrieves details about the requested skill.
 
@@ -713,18 +915,45 @@ class ResumeController:
             KeyError: The requested skill is not listed.
         """
         try:
-            details = Skill.get(Skill.skill == skill)
+            details = models.Skill.get(models.Skill.skill == skill)
             return {"skill": details.skill, "level": details.level}
         except DoesNotExist:
             raise KeyError("The requested skill does not exist (yet!)")
 
     @staticmethod
-    def upsert_skill():
-        pass
+    def upsert_skill(skill: schema.Skill) -> int:
+        """
+        Creates a new skill or updates an existing skill.
+
+        Args:
+            skill: A Skill object specifying the name of the skill and the skill level.
+        Returns:
+            An integer indicating the ID of the skill.
+        """
+        query = models.BasicInfo.insert(skill=skill).on_conflict(
+            conflict_target=[models.Skill.skill],
+            preserve=[models.Skill.skill],
+            update={models.Skill.level: skill.level},
+        )
+        return query.execute()
 
     @staticmethod
-    def delete_skill():
-        pass
+    def delete_skill(skill: str) -> int:
+        """
+        Deletes a Skill.
+
+        Args:
+            skill: A string indicating the name of the skill to remove.
+        Returns:
+            An integer indicating the number of objects affected by the operation.
+        Raises:
+            KeyError: The requested skill does not exist.
+        """
+        try:
+            item = models.Skill.get(models.Skill.skill == skill)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested skill does not exist")
 
     @staticmethod
     def get_competencies() -> Dict[str, List[str]]:
@@ -736,12 +965,38 @@ class ResumeController:
         Returns:
             A list of configured competencies.
         """
-        return {"competencies": [comp.competency for comp in Competency.select()]}
+        return {
+            "competencies": [comp.competency for comp in models.Competency.select()]
+        }
 
     @staticmethod
-    def upsert_competency():
-        pass
+    def upsert_competency(competency: str) -> int:
+        """
+        Creates a new competency.
+
+        Args:
+            competency: A string specifying the competency
+        Returns:
+            An integer indicating the ID of the competency.
+        """
+        query = models.Competency.insert(competency=competency).on_conflict_ignore()
+        return query.execute()
 
     @staticmethod
-    def delete_competency():
-        pass
+    def delete_competency(competency: str) -> int:
+        """
+        Removes a competency string.
+
+        Args:
+            competency: A string specifying the competency to remove.
+        Returns:
+            An integer indicating the number of competency objects affected by the
+                operation.
+        Raises:
+            KeyError: The requested competency does not exist.
+        """
+        try:
+            item = models.Competency.get(models.Competency.competency == competency)
+            return item.delete_instance()
+        except DoesNotExist:
+            raise KeyError("The requested competency does not exist")
