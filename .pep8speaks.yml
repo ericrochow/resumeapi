@@ -1,0 +1,11 @@
+scanner:
+  diff_only: True
+  linter: flake8
+
+flake8:
+  max-line-length: 88
+  ignore:
+    - E203  # whitespace before ':' - black and flake8 disagree
+    - W503  # line break before binary operator - black and flake8 disagree
+
+no_blank_comment: False
