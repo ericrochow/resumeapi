@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     """
-    Validates a JWT token and identifies the currently-authenticated user.
+    Validate a JWT token and identifies the currently-authenticated user.
 
     Args:
         token: A string containing a full JWT token.
@@ -59,7 +59,7 @@ async def get_current_active_user(
     current_user: schema.User = Depends(get_current_user),
 ):
     """
-    Determines whether the currently-authenticated user is disabled or active.
+    Determine whether the currently-authenticated user is disabled or active.
 
     Args:
         current_user:
@@ -85,7 +85,7 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Dict[str, str]:
     """
-    Authenticates a user with Basic Auth and passes back a Bearer token.
+    Authenticate a user with Basic Auth and passes back a Bearer token.
 
     Args:
         form_data: An OAuth2PasswordRequest object containing Basic Auth credentials
@@ -138,7 +138,7 @@ async def read_users_me(current_user: schema.User = Depends(get_current_active_u
 @app.get(
     "/basic_info",
     summary="Basic info about me",
-    description="Gathers basic details about me, such as contact info, pronouns, etc",
+    description="Gather basic details about me, such as contact info, pronouns, etc",
     response_description="About Me",
     response_model=schema.BasicInfo,
     tags=["Basic Info"],
@@ -150,7 +150,7 @@ async def get_basic_info() -> Dict[str, List[Dict[str, str]]]:
 @app.get(
     "/basic_info/{fact}",
     summary="Single basic info fact",
-    description="Finds a single basic info fact about me based on the specified path",
+    description="Find a single basic info fact about me based on the specified path",
     response_description="Requested basic info fact",
     tags=["Basic Info"],
 )
@@ -166,7 +166,7 @@ async def get_basic_info_fact(fact: str) -> Dict[str, str]:
 @app.get(
     "/education",
     summary="Education history",
-    description="Finds my full education history",
+    description="Find my full education history",
     response_description="Education history",
     response_model=schema.EducationHistory,
     tags=["Education"],
@@ -178,7 +178,7 @@ async def get_education() -> Dict[str, List[Dict[str, str]]]:
 @app.get(
     "/education/{index}",
     summary="Single education history item",
-    description="Finds a single education history item specified in the path",
+    description="Find a single education history item specified in the path",
     response_description="Education history item",
     response_model=schema.Education,
     responses={404: {"model": schema.Education}},
@@ -196,7 +196,7 @@ async def get_education_item(index: int) -> Dict[str, str]:
 @app.get(
     "/experience",
     summary="Full job history",
-    description="Finds my full post-undergrad job history",
+    description="Find my full post-undergrad job history",
     response_description="Job history",
     response_model=schema.JobHistory,
     tags=["Experience"],
@@ -208,7 +208,7 @@ async def get_experience() -> dict:
 @app.get(
     "/experience/{index}",
     summary="Job history item",
-    description="Finds a single job history item specified in the path",
+    description="Find a single job history item specified in the path",
     response_description="Job history item",
     response_model=schema.Job,
     responses={404: {"model": schema.Job}},
@@ -227,7 +227,7 @@ async def get_experience_item(index: int) -> dict:
     "/certifications",
     summary="Certification list",
     description=(
-        "Finds my full list of current, previous, and in-progress certifications"
+        "Find my full list of current, previous, and in-progress certifications"
     ),
     response_description="Certifications",
     response_model=schema.CertificationHistory,
@@ -244,7 +244,7 @@ async def get_certification_history(
     "/certifications/{certification}",
     summary="Single certification",
     description=(
-        "Finds information about a single certification specified in the path (case"
+        "Find information about a single certification specified in the path (case"
         " sensitive)"
     ),
     response_description="Certification",
@@ -265,7 +265,7 @@ async def get_certification_item(certification: str) -> dict:
 @app.get(
     "/side_projects",
     summary="Side projects",
-    description="Finds a list of my highlighted side projects",
+    description="Find a list of my highlighted side projects",
     response_description="Side projects",
     response_model=schema.SideProjects,
     tags=["Side Projects"],
@@ -277,7 +277,7 @@ async def get_side_projects() -> dict:
 @app.get(
     "/side_projects/{project}",
     summary="Single side project",
-    description="Finds a single side side project specified in the path",
+    description="Find a single side side project specified in the path",
     response_description="Side project",
     tags=["Side Projects"],
 )
@@ -318,7 +318,7 @@ async def get_interests_by_category(
 @app.get(
     "/social_links",
     summary="Social links",
-    description="Finds a list of links to me on the web",
+    description="Find a list of links to me on the web",
     response_description="Social links",
     response_model=schema.SocialLinks,
     tags=["Social"],
@@ -330,7 +330,7 @@ async def get_social_links() -> Dict[str, str]:
 @app.get(
     "/social_links/{platform}",
     summary="Social link",
-    description="Finds the social link specified in the path",
+    description="Find the social link specified in the path",
     response_description="Social link",
     tags=["Social"],
 )
@@ -346,7 +346,7 @@ async def get_social_link_by_key(platform=schema.SocialLinkEnum) -> Dict[str, st
 @app.get(
     "/skills",
     summary="Skills",
-    description="Finds a (non-comprehensive) list of skills and info about them",
+    description="Find a (non-comprehensive) list of skills and info about them",
     response_description="Skills",
     response_model=schema.Skills,
     tags=["Skills"],
@@ -358,7 +358,7 @@ async def get_skills() -> Dict[str, List[str]]:
 @app.get(
     "/skills/{skill}",
     summary="Skill",
-    description="Finds the skill specified in the path",
+    description="Find the skill specified in the path",
     response_description="Skill",
     response_model=schema.Skill,
     tags=["Skills"],
@@ -376,7 +376,7 @@ async def get_skill(skill: str) -> dict:
 @app.get(
     "/competencies",
     summary="Competencies",
-    description="Finds a list of general technical and non-technical skills",
+    description="Find a list of general technical and non-technical skills",
     response_description="Competencies",
     response_model=schema.Competencies,
     tags=["Skills"],
@@ -419,7 +419,7 @@ async def get_resume_html() -> RedirectResponse:
 # PUT methods for create and update operations
 @app.put(
     "/basic_info",
-    summary="Creates or updates an existing fact",
+    summary="Create or updates an existing fact",
     # description="",
     response_description="ID of the new or updated fact",
     tags=["Basic Info"],
@@ -433,7 +433,7 @@ async def add_or_update_fact(
 
 @app.put(
     "/education",
-    summary="Creates or updates an education item",
+    summary="Create or updates an education item",
     # description="",
     response_description="ID of the new or updated education item",
     tags=["Education"],
@@ -447,7 +447,7 @@ async def add_or_update_education(
 
 @app.put(
     "/experience",
-    summary="Creates or updates an experience item",
+    summary="Create or updates an experience item",
     # description="",
     response_description="ID of the new or updated experience item",
     tags=["Experience"],
@@ -461,7 +461,7 @@ async def add_or_update_experience(
 
 @app.put(
     "/certifications",
-    summary="Creates or updates a certification",
+    summary="Create or updates a certification",
     # description="",
     response_description="ID of the new or updated certification",
     tags=["Certifications"],
@@ -475,7 +475,7 @@ async def add_or_update_certification(
 
 @app.put(
     "/side_projects",
-    summary="Creates or updates a side project",
+    summary="Create or updates a side project",
     # description="",
     response_description="ID of the new or updated side project",
     tags=["Side Projects"],
@@ -489,7 +489,7 @@ async def add_or_update_side_project(
 
 @app.put(
     "/interests/{category}",
-    summary="Creates or updates an interest",
+    summary="Create or updates an interest",
     description="",
     response_description="ID of the new or updated interest",
     tags=["Interests"],
@@ -504,7 +504,7 @@ async def add_or_update_interest(
 
 @app.put(
     "/social_links",
-    summary="Creates or updates a social link",
+    summary="Create or updates a social link",
     # description="",
     response_description="",
     tags=["Social"],
@@ -518,7 +518,7 @@ async def add_or_create_social_link(
 
 @app.put(
     "/skills",
-    summary="Creates or updates a skill",
+    summary="Create or updates a skill",
     # description="",
     response_description="ID of the new or updated skill",
     tags=["Skills"],
@@ -532,7 +532,7 @@ async def add_or_update_skill(
 
 @app.put(
     "/copetencies",
-    summary="Creates or updates a competencies",
+    summary="Create or updates a competencies",
     # description="",
     response_description="ID of the new or updated competency",
     tags=["Skills"],
@@ -547,7 +547,7 @@ async def add_or_update_competency(
 # DELETE methods for delete operations
 @app.delete(
     "/basic_info/{fact}",
-    summary="Deletes an existing fact",
+    summary="Delete an existing fact",
     tags=["Basic Info"],
     status_code=204,
 )
@@ -564,7 +564,7 @@ async def delete_fact(
 
 @app.delete(
     "/education/{index}",
-    summary="Deletes an existing education history item",
+    summary="Delete an existing education history item",
     tags=["Education"],
     status_code=204,
 )
@@ -581,7 +581,7 @@ async def delete_education_item(
 
 @app.delete(
     "/experience/{index}",
-    summary="Deletes an existing job history item",
+    summary="Delete an existing job history item",
     tags=["Experience"],
     status_code=204,
 )
@@ -598,7 +598,7 @@ async def delete_experience_item(
 
 @app.delete(
     "/certifications/{certification}",
-    summary="Deletes an existing certification",
+    summary="Delete an existing certification",
     tags=["Certifications"],
     status_code=204,
 )
@@ -615,7 +615,7 @@ async def delete_certification(
 
 @app.delete(
     "/side_projects/{project}",
-    summary="Deletes an existing side project",
+    summary="Delete an existing side project",
     tags=["Side Projects"],
     status_code=204,
 )
@@ -632,7 +632,7 @@ async def delete_side_project(
 
 @app.delete(
     "/interests/{interest}",
-    summary="Deletes an existing interest",
+    summary="Delete an existing interest",
     tags=["Interests"],
     status_code=204,
 )
@@ -649,7 +649,7 @@ async def delete_interest(
 
 @app.delete(
     "/social_links/{platform}",
-    summary="Deletes an existing social link",
+    summary="Delete an existing social link",
     tags=["Social"],
     status_code=204,
 )
@@ -666,7 +666,7 @@ async def delete_social_link(
 
 @app.delete(
     "/skills/{skill}",
-    summary="Deletes an existing social link",
+    summary="Delete an existing social link",
     tags=["Skills"],
     status_code=204,
 )
@@ -683,7 +683,7 @@ async def delete_skill(
 
 @app.delete(
     "/competencies/{competency}",
-    summary="Deletes an existing social link",
+    summary="Delete an existing social link",
     tags=["Skills"],
     status_code=204,
 )
