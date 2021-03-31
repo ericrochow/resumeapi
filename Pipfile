@@ -7,6 +7,7 @@ name = "pypi"
 fastapi = {extras = ["all"], version = "*"}
 passlib = {extras = ["bcrypt"], version = "*"}
 peewee = "*"
+pydantic = {extras = ["dotenv", "email"], version = "*"}
 python-dotenv = "*"
 python-jose = {extras = ["cryptography"], version = "*"}
 python-multipart = "*"
