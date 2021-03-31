@@ -91,8 +91,8 @@ class Job(BaseModel):
     employer_summary: str
     job_title: str
     job_summary: str
-    details: Optional[List[str]]
-    highlights: Optional[List[str]]
+    details: Optional[List[dict]]
+    highlights: Optional[List[dict]]
 
     class Config:
         schema_extra = {
