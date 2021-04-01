@@ -17,7 +17,7 @@ from controller import AuthController, ResumeController
 import schema
 
 load_dotenv()
-app = FastAPI()
+app = FastAPI(title="Resume API", version="0.1.0")
 resume = ResumeController()
 auth_control = AuthController()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
