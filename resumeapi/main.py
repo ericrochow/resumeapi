@@ -76,7 +76,7 @@ async def get_current_active_user(
 @app.post(
     "/token",
     summary="Create an API token",
-    description="Logs into the API to generate a token",
+    description="Log into the API to generate a token",
     response_description="Token info",
     response_model=schema.Token,
     tags=["Authentication"],
@@ -114,7 +114,7 @@ async def login_for_access_token(
 @app.get(
     "/users",
     summary="List all users",
-    description="Lists all users and whether the user is active",
+    description="List all users and whether the user is active",
     response_description="All users",
     response_model=schema.Users,
     tags=["Users"],
@@ -126,13 +126,46 @@ async def get_all_users(current_user: schema.User = Depends(get_current_active_u
 @app.get(
     "/users/me",
     summary="Current user info",
-    description="Returns info about the currently-authenticated user",
+    description="Return info about the currently-authenticated user",
     response_description="User info",
     response_model=schema.User,
     tags=["Users"],
 )
 async def read_users_me(current_user: schema.User = Depends(get_current_active_user)):
     return {"username": current_user.username, "disabled": current_user.disabled}
+
+
+@app.get(
+    "/",
+    summary="",
+    description="",
+    response_description="",
+    response_model=schema.FullResume,
+    tags=["Full Resume"],
+)
+async def get_full_resume() -> dict:
+    """"""
+    return resume.get_full_resume()
+
+
+@app.get(
+    "/pdf", summary="", description="", response_description="", tags=["Full Resume"]
+)
+async def get_resume_pdf() -> FileResponse:
+    pdf = "ericrochowresume.pdf"
+    try:
+        return FileResponse(pdf)
+    except RuntimeError:
+        return JSONResponse(
+            status_code=404, content={"message": "No file at this location"}
+        )
+
+
+@app.get(
+    "/html", summary="", description="", response_description="", tags=["Full Resume"]
+)
+async def get_resume_html() -> RedirectResponse:
+    return RedirectResponse("https://resume.ericroc.how")
 
 
 @app.get(
@@ -151,7 +184,7 @@ async def get_basic_info() -> Dict[str, List[Dict[str, str]]]:
     "/basic_info/{fact}",
     summary="Single basic info fact",
     description="Find a single basic info fact about me based on the specified path",
-    response_description="Requested basic info fact",
+    response_description="Basic info fact",
     tags=["Basic Info"],
 )
 async def get_basic_info_fact(fact: str) -> Dict[str, str]:
@@ -198,11 +231,12 @@ async def get_education_item(index: int) -> Dict[str, str]:
     summary="Full job history",
     description="Find my full post-undergrad job history",
     response_description="Job history",
-    response_model=schema.JobHistory,
+    # response_model=schema.JobHistory,
+    response_model=List[schema.Job],
     tags=["Experience"],
 )
 async def get_experience() -> dict:
-    return {"experience": resume.get_experience()}
+    return resume.get_experience()
 
 
 @app.get(
@@ -231,6 +265,7 @@ async def get_experience_item(index: int) -> dict:
     ),
     response_description="Certifications",
     response_model=schema.CertificationHistory,
+    # response_model=List[schema.Certification],
     tags=["Certifications"],
 )
 async def get_certification_history(
@@ -292,21 +327,23 @@ async def get_side_project(project: str) -> Dict[str, str]:
 
 @app.get(
     "/interests",
-    summary="",
-    description="",
-    response_description="",
+    summary="Interests",
+    description="Find all personal and technical/professional interests",
+    response_description="Interests",
     response_model=schema.Interests,
     tags=["Interests"],
 )
-async def get_all_interests() -> dict:
+async def get_all_interests() -> schema.Interests:
     return resume.get_all_interests()
 
 
 @app.get(
     "/interests/{category}",
-    summary="",
-    response_description="",
-    response_model="",
+    summary="Interests for the requested category",
+    description="Find all interests for the requested categories",
+    response_description="Interests",
+    response_model=schema.Interests,
+    response_model_exclude_none=True,
     tags=["Interests"],
 )
 async def get_interests_by_category(
@@ -385,111 +422,90 @@ async def get_competencies() -> Dict[str, List[str]]:
     return resume.get_competencies()
 
 
-# @app.get(
-# "/",
-# summary="",
-# description="",
-# response_description="",
-# response_model=schema.FullResume,
-# )
-# async def get_full_resume() -> dict:
-# """"""
-# from pprint import pprint
-
-# pprint(data.FULL_RESUME)
-# return data.FULL_RESUME
-
-
-@app.get("/pdf", summary="", description="", response_description="", tags=["Media"])
-async def get_resume_pdf() -> FileResponse:
-    pdf = "ericrochowresume.pdf"
-    try:
-        return FileResponse(pdf)
-    except RuntimeError:
-        return JSONResponse(
-            status_code=404, content={"message": "No file at this location"}
-        )
-
-
-@app.get("/html", summary="", description="", response_description="", tags=["Media"])
-async def get_resume_html() -> RedirectResponse:
-    return RedirectResponse("https://resume.ericroc.how")
-
-
 # PUT methods for create and update operations
 @app.put(
     "/basic_info",
-    summary="Create or updates an existing fact",
-    # description="",
+    summary="Create or update an existing fact",
+    description="",
     response_description="ID of the new or updated fact",
     tags=["Basic Info"],
 )
 async def add_or_update_fact(
     basic_fact: schema.BasicInfoItem = Body(...),
     current_user: schema.User = Depends(get_current_active_user),
-) -> dict:
-    return resume.upsert_basic_info_item(basic_fact)
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=200, content={"id": resume.upsert_basic_info_item(basic_fact)}
+    )
 
 
 @app.put(
     "/education",
-    summary="Create or updates an education item",
-    # description="",
+    summary="Create or update an education item",
+    description="",
     response_description="ID of the new or updated education item",
     tags=["Education"],
 )
 async def add_or_update_education(
     education_item: schema.Education = Body(...),
     current_user: schema.User = Depends(get_current_active_user),
-) -> dict:
-    return resume.upsert_education_item(education_item)
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=200, content={"id": resume.upsert_education_item(education_item)}
+    )
 
 
 @app.put(
     "/experience",
-    summary="Create or updates an experience item",
-    # description="",
+    summary="Create or update an experience item",
+    description="",
     response_description="ID of the new or updated experience item",
     tags=["Experience"],
 )
 async def add_or_update_experience(
     education_item: schema.Job = Body(...),
     current_user: schema.User = Depends(get_current_active_user),
-) -> dict:
-    return resume.upsert_education_item(education_item)
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=200, content={"id": resume.upsert_education_item(education_item)}
+    )
 
 
 @app.put(
     "/certifications",
-    summary="Create or updates a certification",
-    # description="",
+    summary="Create or update a certification",
+    description="",
     response_description="ID of the new or updated certification",
     tags=["Certifications"],
 )
 async def add_or_update_certification(
     certification: schema.Certification = Body(...),
     current_user: schema.User = Depends(get_current_active_user),
-) -> dict:
-    return resume.upsert_education_item(certification)
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=200, content={"id": resume.upsert_education_item(certification)}
+    )
 
 
 @app.put(
     "/side_projects",
-    summary="Create or updates a side project",
-    # description="",
+    summary="Create or update a side project",
+    description="",
     response_description="ID of the new or updated side project",
     tags=["Side Projects"],
 )
 async def add_or_update_side_project(
     side_project: schema.SideProject = Body(...),
     current_user: schema.User = Depends(get_current_active_user),
-) -> dict:
-    return resume.upsert_side_project(side_project)
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=200, content={"id": resume.upsert_side_project(side_project)}
+    )
 
 
 @app.put(
     "/interests/{category}",
-    summary="Create or updates an interest",
+    summary="Create or update an interest",
     description="",
     response_description="ID of the new or updated interest",
     tags=["Interests"],
@@ -498,50 +514,57 @@ async def add_or_update_interest(
     category: schema.InterestTypes,
     interest: schema.Interest = Body(...),
     current_user: schema.User = Depends(get_current_active_user),
-) -> int:
-    return resume.upsert_interest(category, interest.interest)
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=200,
+        content={"id": resume.upsert_interest(category, interest.interest)},
+    )
 
 
 @app.put(
     "/social_links",
-    summary="Create or updates a social link",
-    # description="",
+    summary="Create or update a social link",
+    description="",
     response_description="",
     tags=["Social"],
 )
 async def add_or_create_social_link(
     social_link: schema.SocialLink,
     current_user: schema.User = Depends(get_current_active_user),
-) -> int:
-    return resume.upsert_social_link(social_link)
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=200, content={"id": resume.upsert_social_link(social_link)}
+    )
 
 
 @app.put(
     "/skills",
-    summary="Create or updates a skill",
-    # description="",
+    summary="Create or update a skill",
+    description="",
     response_description="ID of the new or updated skill",
     tags=["Skills"],
 )
 async def add_or_update_skill(
     skill: schema.Skill = Body(...),
     current_user: schema.User = Depends(get_current_active_user),
-) -> int:
-    return resume.upsert_skill(skill)
+) -> JSONResponse:
+    return JSONResponse(status_code=200, content={"id": resume.upsert_skill(skill)})
 
 
 @app.put(
     "/copetencies",
-    summary="Create or updates a competencies",
-    # description="",
+    summary="Create or update a competencies",
+    description="",
     response_description="ID of the new or updated competency",
     tags=["Skills"],
 )
 async def add_or_update_competency(
     competency: schema.Competencies = Body(...),
     current_user: schema.User = Depends(get_current_active_user),
-) -> int:
-    return resume.upsert_competency(competency)
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=200, content={"id": resume.upsert_competency(competency)}
+    )
 
 
 # DELETE methods for delete operations
@@ -666,7 +689,7 @@ async def delete_social_link(
 
 @app.delete(
     "/skills/{skill}",
-    summary="Delete an existing social link",
+    summary="Delete an existing skill",
     tags=["Skills"],
     status_code=204,
 )
@@ -683,7 +706,7 @@ async def delete_skill(
 
 @app.delete(
     "/competencies/{competency}",
-    summary="Delete an existing social link",
+    summary="Delete an existing competency",
     tags=["Skills"],
     status_code=204,
 )

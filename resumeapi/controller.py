@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import ast
 from contextlib import suppress
 from datetime import datetime, timedelta
 import logging
@@ -193,7 +194,10 @@ class ResumeController:
         info = models.BasicInfo.select()
         resp = {}
         for i in info:
-            resp[i.fact] = i.value
+            try:
+                resp[i.fact] = ast.literal_eval(i.value)
+            except (ValueError, SyntaxError):
+                resp[i.fact] = i.value
         return resp
 
     @staticmethod
@@ -209,6 +213,9 @@ class ResumeController:
             KeyError: The requested fact does not exist.
         """
         try:
+            info = models.BasicInfo.get(models.BasicInfo.fact == fact)
+            return {info.fact: ast.literal_eval(info.value)}
+        except (ValueError, SyntaxError):
             info = models.BasicInfo.get(models.BasicInfo.fact == fact)
             return {info.fact: info.value}
         except DoesNotExist:
@@ -531,7 +538,10 @@ class ResumeController:
         prefs = models.Preference.select()
         resp = {}
         for pref in prefs:
-            resp[pref.preference] = pref.value
+            try:
+                resp[pref.preference] = ast.literal_eval(pref.value)
+            except (ValueError, SyntaxError):
+                resp[pref.preference] = pref.value
         return resp
 
     @staticmethod
@@ -837,7 +847,7 @@ class ResumeController:
         """
         return {
             **ResumeController.get_interests_by_category("technical"),
-            **ResumeController.get_technical_by_category("personal"),
+            **ResumeController.get_interests_by_category("personal"),
         }
 
     @staticmethod
@@ -854,7 +864,7 @@ class ResumeController:
         resp = []
         for link in links:
             resp.append({"platform": link.platform, "link": link.link})
-        return resp
+        return {"social_links": resp}
 
     @staticmethod
     def get_social_link(platform: str) -> schema.SocialLink:
@@ -984,7 +994,7 @@ class ResumeController:
             raise KeyError("The requested skill does not exist")
 
     @staticmethod
-    def get_competencies() -> Dict[str, List[str]]:
+    def get_competencies() -> List[str]:
         """
         Retrieve a list of configured competencies.
 
@@ -1028,3 +1038,26 @@ class ResumeController:
             return item.delete_instance()
         except DoesNotExist:
             raise KeyError("The requested competency does not exist")
+
+    @classmethod
+    def get_full_resume(cls) -> dict:
+        """
+        Assemble all elements of the resume into a single response.
+
+        Args:
+            None
+        Returns:
+            A dict containing all elements of the resume.
+        """
+        resp = {}
+        resp["basic_info"] = ResumeController.get_basic_info()
+        resp["experience"] = ResumeController.get_experience()
+        resp["education"] = ResumeController.get_all_education_history()
+        resp["certifications"] = ResumeController.get_certifications()
+        resp["side_projects"] = ResumeController.get_side_projects()
+        resp["interests"] = ResumeController.get_all_interests()
+        resp["social_links"] = ResumeController.get_social_links()
+        resp["skills"] = ResumeController.get_skills()
+        resp["preferences"] = ResumeController.get_all_preferences()
+        resp["competencies"] = ResumeController.get_competencies()
+        return resp

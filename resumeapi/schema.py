@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr, HttpUrl
 
 
 class BasicInfo(BaseModel):
     name: str
-    pronouns: str
+    pronouns: List[str]
     email: EmailStr
     phone: str
     about: str
@@ -181,18 +181,18 @@ class Competencies(BaseModel):
         }
 
 
-class Interest(BaseModel):
-    interest: str
-
-
 class InterestTypes(str, Enum):
     personal = "personal"
     technical = "technical"
 
 
+class Interest(BaseModel):
+    interest: str
+
+
 class Interests(BaseModel):
-    personal: List[str]
-    technical: List[str]
+    personal: Optional[List[str]]
+    technical: Optional[List[str]]
 
     class Config:
         schema_extra = {
@@ -220,7 +220,7 @@ class TechnicalInterests(BaseModel):
 class Preferences(BaseModel):
     OS: List[str]
     EDITOR: str
-    TERM: str
+    TERMINAL: str
     COLOR_THEME: Optional[str]
     CODE_COMPLETION: Optional[str]
     CODE_STYLE: Optional[str]
@@ -327,13 +327,15 @@ class Skills(BaseModel):
 
 class FullResume(BaseModel):
     basic_info: BasicInfo
-    experience: JobHistory
-    education: EducationHistory
-    side_projects: SideProjects
-    technical_interests: TechnicalInterests
-    personal_interests: PersonalInterests
-    social_links: SocialLinks
+    certifications: List[Certification]
+    competencies: List[str]
+    education: List[Education]
+    experience: List[Job]
+    interests: Dict[InterestTypes, List[str]]
     preferences: Preferences
+    side_projects: List[SideProject]
+    skills: List[Skill]
+    social_links: List[SocialLink]
 
 
 class User(BaseModel):
