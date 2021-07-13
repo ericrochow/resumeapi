@@ -1,15 +1,19 @@
 [project]
 name = "resumeapi"
-version = "0.1.0"
+version = "0.2.0"
 description = "Create an API that provides my resume"
-authors = ["Eric Rochow <ericrochow@gmail.com>"]
-license = "Apache 2.0"
 readme = "README.md"
-python = "^3.6"
-homepage = ""
-repository = ""
-documentation = ""
+requires-python = ">=3.6"
+license = "Apache 2.0"
 keywords = []
+authors = [
+  {name = "Eric Rochow"},
+  {email = "ericrochow@gmail.com"}
+]
+maintainers = [
+  {name = "Eric Rochow"},
+  {email = "ericrochow@gmail.com"}
+]
 classifiers = []
 
 dependencies = [
@@ -20,7 +24,7 @@ dependencies = [
   "PyJWT >= 2.0.1",
   "python-decouple >= 3.4",
   "python-dotenv >= 0.15.0",
-  "uvicorn [standard] >= 0.13.4",
+  "uvicorn[standard] >= 0.13.4",
 ]
 
 [project.optional_dependencies]
@@ -29,6 +33,12 @@ dev = [
   "flake8-bandit >= 2.1.2",
   "ipdb >= 0.13.6",
 ]
+
+[project.urls]
+homepage = ""
+repository = ""
+documentation = ""
+changelog = ""
 
 [build-system]
 requires = ["setuptools>=40.8.0", "wheel"]
