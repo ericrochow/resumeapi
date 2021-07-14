@@ -12,6 +12,7 @@ python-dotenv = "*"
 python-jose = {extras = ["cryptography"], version = "*"}
 python-multipart = "*"
 uvicorn = {extras = ["standard"], version = "*"}
+psycopg2-binary = "*"
 
 [dev-packages]
 bandit = "*"
