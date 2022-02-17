@@ -13,6 +13,7 @@ python-jose = {extras = ["cryptography"], version = "*"}
 python-multipart = "*"
 uvicorn = {extras = ["standard"], version = "*"}
 psycopg2-binary = "*"
+sqlmodel = "*"
 
 [dev-packages]
 bandit = "*"
