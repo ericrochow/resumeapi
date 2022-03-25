@@ -1,0 +1,1 @@
+sudo docker run -d --name resumedb --env-file=/etc/default/resumeapi  -v /var/lib/postgresql/data/pgdata:/var/lib/postgresql/data postgre
