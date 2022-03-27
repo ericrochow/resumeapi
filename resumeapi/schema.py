@@ -284,7 +284,7 @@ class SocialLink(BaseModel):
 
 class SocialLinks(BaseModel):
 
-    social_links: List[SocialLink]
+    social_links: Dict[str, List[SocialLink]]
 
     class Config:
         schema_extra = {
