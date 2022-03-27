@@ -1,123 +1,165 @@
 #!/usr/bin/env python3
 
-from contextvars import ContextVar
-import peewee
+import logging
+import os
+from pathlib import Path
+from typing import Optional
+
+from sqlmodel import Field, SQLModel, UniqueConstraint, create_engine
 
 
-DATABASE_NAME = "resume.db"
-db_state_default = {"closed": None, "conn": None, "ctx": None, "transactions": None}
-db_state = ContextVar("db_state", default=db_state_default.copy())
+logger = logging.getLogger(__name__)
 
 
-class PeeweeConnectionState(peewee._ConnectionState):
-    def __init__(self, **kwargs):
-        super().__setattr__("_state", db_state)
-        super().__init__(**kwargs)
-
-    def __setattr__(self, name, value):
-        self._state.get()[name] = value
-
-    def __getattr__(self, name):
-        return self._state.get()[name]
+class User(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("username"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field()
+    password: str
+    disabled: bool = Field(default=False)
 
 
-db = peewee.SqliteDatabase(DATABASE_NAME, check_same_thread=False)
-
-db._state = PeeweeConnectionState()
-
-
-class RerferenceModel(peewee.Model):
-    class Meta:
-        database = db
+class BasicInfo(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("fact"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    fact: str = Field()
+    value: str
 
 
-class User(RerferenceModel):
-    username = peewee.CharField(unique=True, index=True)
-    password = peewee.CharField()
-    disabled = peewee.BooleanField(default=False)
+class Education(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    institution: str
+    degree: str
+    graduation_date: int
+    gpa: float
 
 
-# class Token(RerferenceModel):
-# token = peewee.CharField()
-# user = peewee.ForeignKeyField(User, backref="tokens")
+class Job(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    employer: str
+    employer_summary: str
+    location: str
+    job_title: str
+    job_summary: str
+    time: str
 
 
-class BasicInfo(RerferenceModel):
-    fact = peewee.CharField(unique=True)
-    value = peewee.CharField()
+class JobHighlight(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    highlight: str
+    job_id: Optional[int] = Field(default=None, foreign_key="job.id")
 
 
-class Education(RerferenceModel):
-    institution = peewee.CharField()
-    degree = peewee.CharField()
-    graduation_date = peewee.IntegerField()
-    gpa = peewee.FloatField()
+class JobDetail(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    detail: str
+    job_id: Optional[int] = Field(default=None, foreign_key="job.id")
 
 
-class Job(RerferenceModel):
-    employer = peewee.CharField()
-    employer_summary = peewee.CharField()
-    location = peewee.CharField()
-    job_title = peewee.CharField()
-    job_summary = peewee.CharField()
-    time = peewee.CharField()
+class Certification(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("cert"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cert: str = Field()
+    full_name: str
+    time: str
+    valid: bool
+    progress: int
 
 
-class JobHighlight(RerferenceModel):
-    highlight = peewee.CharField()
-    job = peewee.ForeignKeyField(Job, backref="highlights")
+class Competency(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("competency"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    competency: str = Field()
 
 
-class JobDetail(RerferenceModel):
-    detail = peewee.CharField()
-    job = peewee.ForeignKeyField(Job, backref="details")
+class PersonalInterest(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("interest"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    interest: str = Field()
 
 
-class Certification(RerferenceModel):
-    cert = peewee.CharField(unique=True)
-    full_name = peewee.CharField()
-    time = peewee.CharField()
-    valid = peewee.BooleanField()
-    progress = peewee.IntegerField()
+class TechnicalInterest(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("interest"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    interest: str = Field()
 
 
-class Competency(RerferenceModel):
-    competency = peewee.CharField(unique=True)
+class InterestType(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("interest_type"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    interest_type: str = Field(index=True)
 
 
-class PersonalInterest(RerferenceModel):
-    interest = peewee.CharField(unique=True)
+class Interest(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("interest"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    interest_type_id: Optional[int] = Field(
+        default=None, foreign_key="interesttype.id"
+    )
+    interest: str = Field()
 
 
-class TechnicalInterest(RerferenceModel):
-    interest = peewee.CharField(unique=True)
+class Preference(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("preference"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    preference: str = Field()
+    value: str
 
 
-class InterestType(RerferenceModel):
-    interest_type = peewee.CharField(unique=True)
+class SideProject(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("title"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str = Field()
+    tagline: str
+    link: str
 
 
-class Interest(RerferenceModel):
-    interest_type = peewee.ForeignKeyField(InterestType, backref="type")
-    interest = peewee.CharField(unique=True)
+class SocialLink(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("platform"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    platform: str = Field()
+    link: str
 
 
-class Preference(RerferenceModel):
-    preference = peewee.CharField(unique=True)
-    value = peewee.CharField()
+class Skill(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("skill"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    skill: str = Field()
+    level: int
 
 
-class SideProject(RerferenceModel):
-    title = peewee.CharField(unique=True)
-    tagline = peewee.CharField()
-    link = peewee.CharField()
+def configure_engine(engine_echo: bool = False):
+    db_type = os.getenv("DB_TYPE", default="sqlite")
+    db_host = os.getenv("DB_HOST", default="resumedb")
+    db_name = os.getenv("DB_NAME", default="resume")
+    db_user = os.getenv("DB_USER")
+    db_pass = os.getenv("DB_PASSWORD")
+
+    if db_type.lower() == "sqlite":
+        logger.debug("sqlite configuration db type detected")
+        default_path = Path(__file__).parent.parent
+        sqlite_file = os.getenv(
+            "SQLITE_DB_PATH", default=f"{default_path}/{db_name}.db"
+        )
+        logger.debug("attempting to use sqlite database stored at %s", sqlite_file)
+        engine = create_engine(f"sqlite:///{sqlite_file}", echo=engine_echo)
+    elif db_type.lower() == "postgresql":
+        logger.debug("postgresql configuration db type detected")
+        db_port = os.getenv("DB_PORT", default=5432)
+        engine = create_engine(
+            f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}",
+            echo=engine_echo,
+        )
+    else:
+        raise ValueError(
+            f"Unsupported database type: {db_type}. Please use one of sqlite or"
+            " postgres."
+        )
+    logger.debug("creating all tables that do not exist")
+    SQLModel.metadata.create_all(engine)
+    logger.debug("finished creating tables")
+    return engine
 
 
-class SocialLink(RerferenceModel):
-    platform = peewee.CharField(unique=True)
-    link = peewee.CharField()
-
-
-class Skill(RerferenceModel):
-    skill = peewee.CharField(unique=True)
-    level = peewee.IntegerField()
+engine = configure_engine()
+# session = Session(engine)
