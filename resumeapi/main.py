@@ -17,7 +17,7 @@ from controller import AuthController, ResumeController
 import schema
 
 load_dotenv()
-app = FastAPI(title="Resume API", version="0.1.0")
+app = FastAPI(title="Resume API", version="0.2.0")
 resume = ResumeController()
 auth_control = AuthController()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -552,18 +552,19 @@ async def add_or_update_skill(
 
 
 @app.put(
-    "/copetencies",
-    summary="Create or update a competencies",
+    "/competencies/{competency}",
+    summary="Create or update a competency",
     description="",
     response_description="ID of the new or updated competency",
     tags=["Skills"],
 )
 async def add_or_update_competency(
-    competency: schema.Competencies = Body(...),
+    # competency: schema.Competencies = Body(...),
+    competency: str,
     current_user: schema.User = Depends(get_current_active_user),
 ) -> JSONResponse:
     return JSONResponse(
-        status_code=200, content={"id": resume.upsert_competency(competency)}
+        status_code=200, content=resume.upsert_competency(competency)
     )
 
 
