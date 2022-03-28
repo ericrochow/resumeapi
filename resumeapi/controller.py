@@ -16,8 +16,6 @@ from sqlmodel import Session, select
 import models
 import schema
 
-import ipdb
-
 
 class AuthController:
     """Interact with authentication methods."""
@@ -232,7 +230,7 @@ class ResumeController:
         """
         with Session(models.engine) as session:
             statement = select(models.BasicInfo).where(models.BasicInfo.fact == fact)
-            info = session.exec(statement).one()
+            info = session.exec(statement).first()
         if not info:
             raise KeyError("Fact does not exist in the DB.")
         try:
@@ -241,7 +239,7 @@ class ResumeController:
             return {info.fact: info.value}
 
     @staticmethod
-    def upsert_basic_info_item(item: Dict[str, str]) -> int:
+    def upsert_basic_info_item(item: Dict[str, str]) -> schema.BasicInfo:
         """
         Create or update an existing fact.
 
@@ -250,12 +248,19 @@ class ResumeController:
         Returns:
             An integer specifying the ID of the key/value pair.
         """
-        query = models.BasicInfo.insert(fact=item.fact, value=item.value).on_conflict(
-            conflict_target=[models.BasicInfo.fact],
-            preserve=[models.BasicInfo.fact],
-            update={models.BasicInfo.value: item.value},
-        )
-        return query.execute()
+        with Session(models.engine) as session:
+            statement = select(models.BasicInfo).where(
+                models.BasicInfo.fact == item.fact
+            )
+            fact = session.exec(statement).first()
+            if fact is None:
+                fact = models.BasicInfo()
+            for key, value in item.dict(exclude_unset=True).items():
+                setattr(fact, key, value)
+            session.add(fact)
+            session.commit()
+            session.refresh(fact)
+            return fact
 
     @staticmethod
     def delete_basic_info_item(fact: str) -> None:
@@ -276,7 +281,6 @@ class ResumeController:
                 raise KeyError("The requested fact does not exist")
             session.delete(item)
             session.commit()
-            session.refresh(item)
             return item
 
     @staticmethod
@@ -330,7 +334,7 @@ class ResumeController:
             return e
 
     @staticmethod
-    def upsert_education_item(edu: schema.Education) -> int:
+    def upsert_education_item(edu: schema.Education) -> schema.Education:
         """
         Create or update an education item.
 
@@ -339,20 +343,23 @@ class ResumeController:
         Returns:
             An integer indicating the ID of the new or updated education item.
         """
-        query = models.Education.insert(
-            institution=edu.institution,
-            degree=edu.degree,
-            graduation_date=edu.graduation_date,
-            gpa=edu.gpa,
-        ).on_conflict(
-            conflict_target=[models.Education.institution, models.Education.degree],
-            preserve=[models.Education.institution, models.Education.degree],
-            update={
-                models.Education.graduation_date: edu.graduation_date,
-                models.Education.gpa: edu.gpa,
-            },
-        )
-        return query.execute()
+        with Session(models.engine) as session:
+            statement = select(models.Education).where(
+                models.Education.institution == edu.institution
+            ).where(
+                models.Education.degree == edu.degree
+            ).where(
+                models.Education.graduation_date == edu.graduation_date
+            )
+            results = session.exec(statement).first()
+            if results is None:
+                results = edu
+            for key, value in results.dict(exclude_unset=True).items():
+                setattr(results, key, value)
+            session.add(results)
+            session.commit()
+            session.refresh(results)
+            return results
 
     @staticmethod
     def delete_education_item(index: int) -> None:
@@ -613,11 +620,10 @@ class ResumeController:
             statement = select(models.Preference).where(
                 models.Preference.preference == preference
             )
-            results = session.exec(statement)
-            pref = results.one()
-        if not pref:
-            raise KeyError(f"No value for {preference} stored in the DB.")
-        return pref.value
+            results = session.exec(statement).first()
+            if results is None:
+                raise KeyError(f"No value for {preference} stored in the DB.")
+            return results.value
 
     @staticmethod
     def upsert_preference(preference: schema.Preferences) -> int:
@@ -639,14 +645,12 @@ class ResumeController:
         return query.execute()
 
     @staticmethod
-    def delete_preference(preference: str) -> int:
+    def delete_preference(preference: str) -> None:
         """
         Delete a preference item.
 
         Args:
             preference: A string specifying the preference to be deleted
-        Returns:
-            An integer specifying the number of rows modified.
         Raises:
             KeyError: The requested preference does not exist.
         """
@@ -654,13 +658,11 @@ class ResumeController:
             statement = select(models.Preference).where(
                 models.Preference.preference == preference
             )
-            item = session.exec(statement).one()
-            if not item:
+            results = session.exec(statement).first()
+            if results is None:
                 raise KeyError("The requested preference does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
-            session.refresh(item)
-            return item
 
     @staticmethod
     def get_certifications(valid_only: bool = False) -> schema.CertificationHistory:
@@ -680,17 +682,17 @@ class ResumeController:
             if valid_only:
                 statement = statement.where(models.Certification.valid)
             certifications = session.exec(statement).all()
-        resp = []
-        for c in certifications:
-            cert = {
-                "cert": c.cert,
-                "full_name": c.full_name,
-                "time": c.time,
-                "valid": c.valid,
-                "progress": c.progress,
-            }
-            resp.append(cert)
-        return resp
+            resp = []
+            for c in certifications:
+                cert = {
+                    "cert": c.cert,
+                    "full_name": c.full_name,
+                    "time": c.time,
+                    "valid": c.valid,
+                    "progress": c.progress,
+                }
+                resp.append(cert)
+            return resp
 
     @staticmethod
     def get_certification_by_name(certification: str) -> schema.Certification:
@@ -765,10 +767,10 @@ class ResumeController:
             statement = select(models.Certification).where(
                 models.Certification.cert == cert
             )
-            item = session.exec(statement).one()
-            if not item:
+            results = session.exec(statement).first()
+            if results is None:
                 raise KeyError("The requested certification does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
 
     @staticmethod
@@ -783,12 +785,13 @@ class ResumeController:
         """
         with Session(models.engine) as session:
             statement = select(models.SideProject)
-            results = session.exec(statement)
-            projects = results.all()
-        resp = [
-            {"title": p.title, "tagline": p.tagline, "link": p.link} for p in projects
-        ]
-        return resp
+            results = session.exec(statement).all()
+            resp = [
+                {
+                    "title": p.title, "tagline": p.tagline, "link": p.link
+                } for p in results
+            ]
+            return resp
 
     @staticmethod
     def get_side_project(project: str) -> schema.SideProject:
@@ -814,7 +817,7 @@ class ResumeController:
         return resp
 
     @staticmethod
-    def upsert_side_project(side_project: schema.SideProjects) -> int:
+    def upsert_side_project(side_project: schema.SideProjects) -> models.SideProject:
         """
         Insert or update project depending on whether it already has an entry.
 
@@ -827,18 +830,18 @@ class ResumeController:
             statement = select(models.SideProject).where(
                 models.SideProject.title == side_project["title"]
             )
-            item = session.exec(statement).one()
-            if not item:
-                item = side_project
+            results = session.exec(statement).first()
+            if results is None:
+                results = side_project
             for key, value in side_project.dict(exclude_unset=True).items():
-                setattr(item, key, value)
-            session.add(item)
+                setattr(results, key, value)
+            session.add(results)
             session.commit()
-            session.refresh(item)
-            return item
+            session.refresh(results)
+            return results
 
     @staticmethod
-    def delete_side_project(title: str) -> int:
+    def delete_side_project(title: str) -> None:
         """
         Delete a side project given the title of the project.
 
@@ -853,10 +856,10 @@ class ResumeController:
             statement = select(models.SideProject).where(
                 models.SideProject.title == title
             )
-            item = session.exec(statement).one()
-            if not item:
+            results = session.exec(statement).first()
+            if results is None:
                 raise KeyError("The requested side project does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
 
     @staticmethod
@@ -875,9 +878,8 @@ class ResumeController:
             ).where(
                 models.InterestType.interest_type == category
             )
-            results = session.exec(statement)
-            interests = results.all()
-        return {category: [interest.interest for interest in interests]}
+            results = session.exec(statement).all()
+        return {category: [interest.interest for interest in results]}
 
     @staticmethod
     def upsert_interest(category: schema.InterestTypes, interest: str) -> int:
@@ -897,7 +899,7 @@ class ResumeController:
         return query.execute()
 
     @staticmethod
-    def delete_interest(interest: str) -> int:
+    def delete_interest(interest: str) -> None:
         """
         Delete an interest.
 
@@ -912,10 +914,10 @@ class ResumeController:
             statement = select(models.Interest).where(
                 models.Interest.interest == interest
             )
-            item = session.exec(statement).one()
-            if not item:
+            results = session.exec(statement).first()
+            if results is None:
                 raise KeyError("The requested interest does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
 
     @classmethod
@@ -945,12 +947,11 @@ class ResumeController:
         """
         with Session(models.engine) as session:
             statement = select(models.SocialLink)
-            results = session.exec(statement)
-            links = results.all()
-        resp = []
-        for link in links:
-            resp.append({"platform": link.platform, "link": link.link})
-        return {"social_links": resp}
+            results = session.exec(statement).all()
+            resp = []
+            for link in results:
+                resp.append({"platform": link.platform, "link": link.link})
+            return {"social_links": resp}
 
     @staticmethod
     def get_social_link(platform: str) -> schema.SocialLink:
@@ -969,11 +970,10 @@ class ResumeController:
             statement = select(models.SocialLink).where(
                 models.SocialLink.platform == platform
             )
-            results = session.exec(statement)
-            link = results.one()
-        if not link:
-            raise KeyError("The requested platform is not configured")
-        return {"platform": link.platform, "link": link.link}
+            results = session.exec(statement).first()
+            if results is None:
+                raise KeyError("The requested platform is not configured")
+            return {"platform": results.platform, "link": results.link}
 
     @staticmethod
     def upsert_social_link(social_link: schema.SocialLink) -> int:
@@ -1010,10 +1010,10 @@ class ResumeController:
         with Session(models.engine) as session:
             statement = select(models.SocialLink).where(
                 models.SocialLink.platform == platform)
-            item = session.exec(statement).one()
-            if not item:
+            results = session.exec(statement).first()
+            if results is None:
                 raise KeyError("The requested platform does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
 
     @staticmethod
@@ -1028,12 +1028,11 @@ class ResumeController:
         """
         with Session(models.engine) as session:
             statement = select(models.Skill)
-            results = session.exec(statement)
-            skills = results.all()
+            results = session.exec(statement).all()
         return {
             "skills": [
                 {"skill": skill.skill, "level": skill.level}
-                for skill in skills
+                for skill in results
             ]
         }
 
@@ -1053,11 +1052,10 @@ class ResumeController:
             statement = select(models.Skill).where(
                 models.Skill.skill == skill
             )
-            results = session.exec(statement)
-            details = results.one()
-        if not details:
-            raise KeyError("The requested skill does not exist (yet!)")
-        return {"skill": details.skill, "level": details.level}
+            results = session.exec(statement).first()
+            if results is None:
+                raise KeyError("The requested skill does not exist (yet!)")
+            return {"skill": results.skill, "level": results.level}
 
     @staticmethod
     def upsert_skill(skill: schema.Skill) -> int:
@@ -1092,10 +1090,10 @@ class ResumeController:
             statement = select(models.Skill).where(
                 models.Skill.skill == skill
             )
-            item = session.exec(statement).item()
-            if not item:
+            results = session.exec(statement).first()
+            if results is None:
                 raise KeyError("The requested skill does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
 
     @staticmethod
@@ -1110,10 +1108,10 @@ class ResumeController:
         """
         with Session(models.engine) as session:
             statement = select(models.Competency)
-            compitencies = session.exec(statement).all()
-        return {
-            "competencies": [comp.competency for comp in compitencies]
-        }
+            results = session.exec(statement).all()
+            return {
+                "competencies": [comp.competency for comp in results]
+            }
 
     @staticmethod
     def upsert_competency(competency: str) -> int:
@@ -1129,18 +1127,18 @@ class ResumeController:
             statement = select(models.Competency).where(
                 models.Competency.competency == competency
             )
-            item = session.exec(statement).first()
-            if not item:
-                item = models.Competency(competency=competency)
-            session.add(item)
+            results = session.exec(statement).first()
+            if results is None:
+                results = models.Competency(competency=competency)
+            session.add(results)
             session.commit()
-            session.refresh(item)
+            session.refresh(results)
             return {
-                "competencies": item.competency
+                "competencies": results.competency
             }
 
     @staticmethod
-    def delete_competency(competency: str) -> int:
+    def delete_competency(competency: str) -> None:
         """
         Remove a competency string.
 
@@ -1156,10 +1154,10 @@ class ResumeController:
             statement = select(models.Competency).where(
                 models.Competency.competency == competency
             )
-            item = session.exec(statement).one()
-            if not item:
+            results = session.exec(statement).first()
+            if results is None:
                 raise KeyError("The requested competency does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
 
     @classmethod
