@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 
 import ast
+from contextlib import suppress
 from datetime import datetime, timedelta
 import logging
 import os
 
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 
 from dotenv import load_dotenv
-from jose import jwt
+from jose import jwt  # noqa
 
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 
 import models
-import schema
 
 
 class AuthController:
@@ -26,17 +26,17 @@ class AuthController:
         self.secret_key = os.getenv("SECRET_KEY")
         self.algorithm = os.getenv("ALGORITHM")
         self.logger = logging.getLogger(__name__)
-        self.logger.addHandler(logging.StreamHandler)
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """
         Verify that the given password matches the hash stored in the database.
 
-        Args:
-            plain_password: A string containing the plaintext password
-            hashed_password: A string containing the bcrypt-hashed password
-        Returns:
-            A boolean specifying whether the password matches.
+        :param plain_password: The plaintext password
+        :type plain_password: str
+        :param hashed_password: The bcrypt-hashed password
+        :type hashed_password: str
+        :return: Whether the password matches
+        :rtype: bool
         """
         return self.pwd_context.verify(plain_password, hashed_password)
 
@@ -44,42 +44,42 @@ class AuthController:
         """
         Provide a bcrypt hash of the given plaintext password.
 
-        Args:
-            password: A string containing a plain-text password to be hashed.
-        Returns:
-            A string containing the bcrypt-hashed password.
+        :param password: A plain-text password to be hashed
+        :type password: str
+        :return: The bcrypt-hashed password
+        :rtype: str
         """
         return self.pwd_context.hash(password)
 
-    def get_user(self, username: str) -> models.User:
+    @staticmethod
+    def get_user(username: str) -> models.User:
         """
         Get information about the requested user.
 
-        Args:
-            username: A string specifying the username of the user to look up.
-        Returns:
-            A User model of the requested user.
-        Raises:
-            KeyError: No such user exists.
+        :param username: The username of the user to look up
+        :type username: str
+        :return: The requested user
+        :rtype: models.py.bak.User
+        :raises KeyError: No such user exists.
         """
         with Session(models.engine) as session:
             statement = select(models.User).where(models.User.username == username)
-            item = session.exec(statement).one()
-            if not item:
+            results = session.exec(statement).first()
+            if results is None:
                 raise KeyError("No such user exists")
-            return item
+            return results
 
     def authenticate_user(self, username: str, password: str) -> models.User:
         """
         Authenticate a user.
 
-        Args:
-            username: A string containing the user's username
-            password: A string containing the user's password
-        Returns:
-            A User model object of the authenticated user.
-        Raises:
-            KeyError: No such user exists.
+        :param username:
+        :type username: str
+        :param password:
+        :type password: str
+        :return: The authenticated user
+        :rtype: models.py.bak.User
+        :raises KeyError: No such user exists.
         """
         user = self.get_user(username)
         self.logger.debug("User %s found", user.username)
@@ -94,12 +94,12 @@ class AuthController:
         """
         Create an access token for a user.
 
-        Args:
-            data: A dict containing the username of the user whose token to generate
-            expires_delta: A timedelta object containing the maximum lifetime of the
-                token (optional)
-        Returns:
-            A string containing an encoded JSON web token.
+        :param data: Username of the user whose token to generate
+        :type data: dict
+        :param expires_delta: Maximum lifetime of the token
+        :type expires_delta: timedelta, optional
+        :return: An encoded JSON web token.
+        :rtype: str
         """
         to_encode = data.copy()
         if expires_delta:
@@ -116,13 +116,14 @@ class AuthController:
         """
         Create a new user in the database.
 
-        Args:
-            email: A string specifying the user's email address
-            password: A string specifying the plaintext password of the user
-            is_active: A boolean specifying whether the user should be active
-                (optional, defaults to True)
-        Returns:
-            An object of the User class.
+        :param username: The user's email address
+        :type username: str
+        :param password: The plaintext password of the user
+        :type password: str
+        :param disabled: Whether the user should be active, defaults to False
+        :type disabled: bool, optional
+        :return: The created user
+        :rtype: models.py.bak.User
         """
         with Session(models.engine) as session:
             user = models.User(
@@ -135,16 +136,15 @@ class AuthController:
             session.refresh(user)
         return user
 
-    def deactivate_user(self, username: str) -> None:
+    def deactivate_user(self, username: str) -> models.User:
         """
         Deactivate an existing user in the DB.
 
-        Args:
-            username: A string specifying the username of the user to disable
-        Returns:
-            None
-        Raises:
-            KeyError: The user does not exist in the DB
+        :param username: The username of the user to disable
+        :type username: str
+        :return: The deactivated user
+        :rtype: models.py.bak.User
+        :raises KeyError: The user does not exist in the DB
         """
         self.logger.info("Attempting to deactivate user %s", username)
         with Session(models.engine) as session:
@@ -173,80 +173,65 @@ class ResumeController:
         pass
 
     @staticmethod
-    def get_all_users() -> List[Dict[str, str]]:
+    def get_all_users() -> List[models.User]:
         """
         List all configured users for auditing purposes.
 
-        Args:
-            None
-        Returns:
-            A list of dictionaries containing the username and disabled status of each
-                user.
+        :return: Username and disabled status of each user
+        :rtype: dict
         """
         with Session(models.engine) as session:
             statement = select(models.User)
-            results = session.exec(statement)
-            all_users = results.all()
-        users = {
-            "users": [
-                {"username": user.username, "disabled": user.disabled}
-                for user in all_users
-            ]
-        }
-        return users
+            results = session.exec(statement).all()
+            return results
 
     @staticmethod
-    def get_basic_info() -> Dict[str, str]:
+    def get_basic_info() -> models.BasicInfos:
         """
         List all configured basic info facts.
 
-        Args:
-            None
-        Returns:
-            A dict containing each fact as a key/value pair.
+        :return: All facts
+        :rtype: dict
         """
         with Session(models.engine) as session:
             statement = select(models.BasicInfo)
-            info = session.exec(statement).all()
-        resp = {}
-        for i in info:
-            try:
-                resp[i.fact] = ast.literal_eval(i.value)
-            except (ValueError, SyntaxError):
-                resp[i.fact] = i.value
-        return resp
+            results = session.exec(statement).all()
+            repsonse_dict = dict()
+            for info in results:
+                try:
+                    repsonse_dict[info.fact] = ast.literal_eval(info.value)
+                except (ValueError, SyntaxError):
+                    repsonse_dict[info.fact] = info.value
+            resp = models.BasicInfos.parse_obj(repsonse_dict)
+            return resp
 
     @staticmethod
-    def get_basic_info_item(fact: str) -> Dict[str, str]:
+    def get_basic_info_item(fact: str) -> models.BasicInfo:
         """
         Find the value of the requested basic value fact.
 
-        Args:
-            fact: A string specifying the fact to look up (e.g. name)
-        Returns:
-            A dict containing a single key/value pair for the requested item.
-        Raises:
-            KeyError: The requested fact does not exist.
+        :param fact: The fact to look up (e.g. name)
+        :type fact: str
+        :return: The requested fact
+        :rtype dict:
+        :raises KeyError: The requested fact does not exist.
         """
         with Session(models.engine) as session:
             statement = select(models.BasicInfo).where(models.BasicInfo.fact == fact)
-            info = session.exec(statement).first()
-        if not info:
-            raise KeyError("Fact does not exist in the DB.")
-        try:
-            return {info.fact: ast.literal_eval(info.value)}
-        except (ValueError, SyntaxError):
-            return {info.fact: info.value}
+            results = session.exec(statement).first()
+            if results is None:
+                raise KeyError("Fact does not exist in the DB.")
+            return results
 
     @staticmethod
-    def upsert_basic_info_item(item: Dict[str, str]) -> schema.BasicInfo:
+    def upsert_basic_info_item(item: models.BasicInfo) -> models.BasicInfo:
         """
         Create or update an existing fact.
 
-        Args:
-            item: A dict containing the name of the fact "fact" and the value "value"
-        Returns:
-            An integer specifying the ID of the key/value pair.
+        :param item: k/v pair of the fact "fact" and the "value"
+        :type item: dict
+        :return: The k/v pair
+        :rtype: dict
         """
         with Session(models.engine) as session:
             statement = select(models.BasicInfo).where(
@@ -267,89 +252,66 @@ class ResumeController:
         """
         Delete an existing fact.
 
-        Args:
-            fact: A string specifying the name of the fact
-        Returns:
-            An integer specifying the number of impacted rows in the DB.
-        Raises:
-            KeyError: The fact does not exist in the DB.
+        :param fact: The name of the fact
+        :type fact: str
+        :raises KeyError: The fact does not exist in the DB.
         """
         with Session(models.engine) as session:
             statement = select(models.BasicInfo).where(models.BasicInfo.fact == fact)
-            item = session.exec(statement).one()
-            if not item:
+            results = session.exec(statement).first()
+            if results is None:
                 raise KeyError("The requested fact does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
-            return item
 
     @staticmethod
-    def get_all_education_history() -> List[Dict[str, str]]:
+    def get_all_education_history() -> List[models.Education]:
         """
         Retrieve all education history objects stored in the database.
 
-        Args:
-            None
-        Returns:
-            A list of all education history objects.
+        :return: All education history objects.
+        :rtype: list
         """
         with Session(models.engine) as session:
             statement = select(models.Education)
-            education = session.execute(statement).all()
-            history = []
-            for edu in education:
-                e = {
-                    "id": edu.Education.id,
-                    "institution": edu.Education.institution,
-                    "degree": edu.Education.degree,
-                    "graduation_date": edu.Education.graduation_date,
-                    "gpa": edu.Education.gpa,
-                }
-                history.append(e)
-            return history
+            results = [e[0] for e in session.execute(statement).all()]
+            return results
 
     @staticmethod
-    def get_education_item(index: int) -> Dict[str, str]:
+    def get_education_item(index: int) -> models.Education:
         """
         Retrieve and education object by its id (index).
 
-        Args:
-            index:
-        Returns:
-            A dict containing details about the requested education item.
-        Raises:
-            IndexError: No item exists at this index.
+        :param index: The ID of the education entry
+        :type index: int
+        :return: Details about the requested education item.
+        :rtype: dict
+        :raises IndexError: No item exists at this index.
         """
         with Session(models.engine) as session:
-            edu = session.get(models.Education, index)
-            if not edu:
+            results = session.get(models.Education, index)
+            if not results:
                 raise IndexError("No item exists at this index.")
-            e = {
-                "id": edu.id,
-                "institution": edu.institution,
-                "degree": edu.degree,
-                "graduation_date": edu.graduation_date,
-                "gpa": edu.gpa,
-            }
-            return e
+            return results
 
     @staticmethod
-    def upsert_education_item(edu: schema.Education) -> schema.Education:
+    def upsert_education_item(edu: models.Education) -> models.Education:
         """
         Create or update an education item.
 
-        Args:
-            edu: An Education schema object
-        Returns:
-            An integer indicating the ID of the new or updated education item.
+        :param edu: An Education schema object
+        :type edu: schema.Education
+        :return: Details of the new or updated education item
+        :rtype schema.Education
         """
         with Session(models.engine) as session:
-            statement = select(models.Education).where(
-                models.Education.institution == edu.institution
-            ).where(
-                models.Education.degree == edu.degree
-            ).where(
-                models.Education.graduation_date == edu.graduation_date
+            statement = (
+                select(models.Education)
+                .where(models.Education.institution == edu.institution)
+                .where(
+                    models.Education.degree == edu.degree,
+                    models.Education.graduation_date == edu.graduation_date,
+                )
             )
             results = session.exec(statement).first()
             if results is None:
@@ -366,12 +328,9 @@ class ResumeController:
         """
         Delete an existing education item.
 
-        Args:
-            index: An integer indicating the ID of the education items to delete
-        Returns:
-            An integer indicating the number of records impacted by the operation.
-        Raises:
-            KeyError: No item exists at this index.
+        :param index: The ID of the education items to delete
+        :type index: int
+        :raises KeyError: No item exists at this index.
         """
         with Session(models.engine) as session:
             item = session.get(models.Education, index)
@@ -381,61 +340,58 @@ class ResumeController:
             session.commit()
 
     @classmethod
-    def get_experience(cls) -> List[Dict[str, str]]:
+    def get_experience(cls) -> List[models.Job]:
         """
         Retrieve a list of previous jobs.
 
-        Args:
-            None
-        Returns:
-            A list of previous jobs and their related details.
+        :return: All previous jobs and their related details.
+        :rtype list:
         """
         resp = []
         with Session(models.engine) as session:
             statement = select(models.Job)
-            jobs = session.exec(statement).all()
-            for job in jobs:
+            results = session.exec(statement).all()
+            for job in results:
                 j = ResumeController.get_experience_item(job.id)
                 resp.append(j)
-            return resp
+            return results
 
     @classmethod
-    def get_experience_item(cls, job_id: int) -> schema.Job:
+    def get_experience_item(cls, job_id: int) -> models.JobResponse:
         """
         Retrieve details for previous job.
 
-        Args:
-            job_id: An integer specifying the ID of the experience item to return
-        Returns:
-            A dict containing the details of the job.
+        :param job_id: The ID of the experience item to return
+        :type job_id: int
+        :return: The details of the job
+        :rtype: schema.JobResponse
         """
         with Session(models.engine) as session:
-            exp = session.get(models.Job, job_id)
-            if not exp:
+            results = session.get(models.Job, job_id)
+            if results is None:
                 raise IndexError("No such experience exists in the DB.")
-            resp = {
-                "id": exp.id,
-                "employer": exp.employer,
-                "employer_summary": exp.employer_summary,
-                "location": exp.location,
-                "job_title": exp.job_title,
-                "job_summary": exp.job_summary,
-                "details": [],
-                "highlights": [],
-            }
+            results = models.JobResponse.parse_obj(results.dict())
             details = ResumeController.get_experience_detail(job_id)
-            for detail in details:
-                resp["details"].append({"id": detail.id, "detail": detail.detail})
+            if details is not None:
+                setattr(results, "details", [])
+                for detail in details:
+                    results.details.append(detail)
             highlights = ResumeController.get_experience_highlight(job_id)
-            for hl in highlights:
-                resp["highlights"].append(
-                    {"id": hl.id, "highlight": hl.highlight}
-                )
-            return resp
+            if highlights is not None:
+                setattr(results, "highlights", [])
+                for hl in highlights:
+                    results.highlights.append(hl)
+            return results
 
     @staticmethod
-    def get_experience_detail(job_id: int) -> List[dict]:
+    def get_experience_detail(job_id: int) -> List[models.JobDetail]:
         """
+        Gather details about the requested Job.
+
+        :param job_id: The ID of the job whose details to return
+        :type job_id: int
+        :return: All details for the requested Job
+        :rtype: list
         """
         with Session(models.engine) as session:
             statement = select(models.JobDetail).where(
@@ -445,8 +401,15 @@ class ResumeController:
             return details
 
     @staticmethod
-    def get_experience_highlight(job_id: int) -> List[dict]:
-        """"""
+    def get_experience_highlight(job_id: int) -> List[models.JobHighlight]:
+        """
+        Gather highlights from the requested Job.
+
+        :param job_id: The ID of the job whose highlights to return
+        :type job_id: int
+        :return: All highlights for the requested Job
+        :rtype: list
+        """
         with Session(models.engine) as session:
             statement = select(models.JobHighlight).where(
                 models.JobHighlight.job_id == job_id
@@ -455,166 +418,150 @@ class ResumeController:
             return details
 
     @staticmethod
-    def upsert_experience_item(job: schema.Job) -> int:
+    def upsert_experience_item(job: models.Job) -> models.Job:
         """
         Create or update an experience item.
 
-        Args:
-            job: A Job schema model object
-        Returns:
-            An integer indicating the ID of the new or updated experience item.
+        :param job: The job to add to the job history
+        :type job: schema.Job
+        :return: The job added to the job history
+        :rtype: schema.Job
         """
-        query = models.Education.insert(
-            employer=job.employer,
-            employer_summary=job.summary,
-            location=job.location,
-            job_title=job.job_title,
-            job_summary=job.job_summary,
-        ).on_conflict(
-            conflict_target=[models.Job.employer, models.Job.job_title],
-            preserve=[models.Job.employer, models.Job.location, models.Job.job_title],
-            update={
-                models.Job.employer_summary: job.employer_summary,
-                models.Job.job_summary: job.job_summary,
-            },
-        )
-        return query.execute()
+        with Session(models.engine) as session:
+            statement = select(models.Education).where(
+                models.Job.employer == job.employer
+            )
+            results = session.exec(statement).first()
+            if results is None:
+                results = job
+            for key, value in job.dict(exclude_unset=True).items():
+                setattr(results, key, value)
+            session.add(results)
+            session.commit()
+            session.refresh(results)
+            return results
 
     @staticmethod
-    def delete_experience_item(index: int) -> int:
+    def delete_experience_item(index: int) -> None:
         """
         Delete a Job item by the given index (id).
 
-        Args:
-            index: An integer specifying the ID of the job.
-        Returns:
-            An integer specifying the number of rows impacted by the operation.
-        Raises:
-            IndexError: No such item exists at this index.
+        :param index: The ID of the job to delete
+        :type index: int
+        :raises IndexError: No such item exists at this index.
         """
         with Session(models.engine) as session:
-            item = session.get(models.Job, index)
-            if not item:
+            results = session.get(models.Job, index)
+            if results is None:
                 raise IndexError("No item exists at this index.")
-            session.delete(item)
+            session.delete(results)
             session.commit()
 
     @staticmethod
-    def upsert_job_detail(job_detail: schema.JobDetail) -> int:
+    def upsert_job_detail(job_detail: models.JobDetail) -> models.JobDetail:
         """
         Create a new job detail.
 
-        Args:
-            job_detail: A JobDetail object
-        Returns:
-            An integer indicating the ID of the newly-created job detail.
+        :param job_detail: Details to add to a job
+        :type job_detail: schema.JobDetail
+        :return: Updated job details
+        :rtype: schema.JobDetail
         """
-        query = models.JobDetail.insert(
-            id=job_detail.id, detail=job_detail.detail, job=job_detail.job
-        ).on_conflict(
-            conflict_target=[models.JobDetail.id],
-            preserve=[models.JobDetail.id],
-            update={
-                models.JobDetail.detail: job_detail.job_detail,
-                models.JobDetail.job: job_detail.job,
-            },
-        )
-        return query.execute()
+        with Session(models.engine) as session:
+            statement = select(models.JobDetail).where(
+                models.JobDetail.id == job_detail.id
+            )
+            results = session.exec(statement).first()
+            if results is None:
+                results = job_detail
+            for key, value in job_detail.dict(exclude_unset=True).items():
+                setattr(results, key, value)
+            session.add(results)
+            session.commit()
+            session.refresh(results)
+            return results
 
     @staticmethod
-    def delete_job_detail(job_detail_id: int) -> int:
+    def delete_job_detail(job_detail_id: int) -> None:
         """
         Remove a job detail with the given ID.
 
-        Args:
-            job_detail_id: An integer specifying the ID of the job detail to remove
-        Returns:
-            An integer indicating the number of job detail records impacted by the
-                operation.
+        :param job_detail_id: The ID of the job detail to remove
+        :type job_detail_id: int
         """
         with Session(models.engine) as session:
-            item = session.get(models.BasicInfo, job_detail_id)
-            if not item:
+            results = session.get(models.BasicInfo, job_detail_id)
+            if not results:
                 raise KeyError("The requested job detail does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
 
     @staticmethod
-    def upsert_job_highlight(job_highlight: schema.JobHighlight) -> int:
+    def upsert_job_highlight(job_highlight: models.JobHighlight) -> models.JobHighlight:
         """
         Create or updates a job highlight.
 
-        Args:
-            job_highlight: A JobHighlight model
-        Returns:
-            An integer specifying the ID of the job highlight.
+        :param job_highlight: A highlight to add to a job
+        :type job_highlight: models.py.bak.JobHighlight
+        :return: The updated job highlight
+        :rtype: models.py.bak.JobHighlight
         """
-        query = models.JobHighlight.insert(
-            id=job_highlight.id,
-            highlight=job_highlight.job_highlight,
-            job=job_highlight.job,
-        ).on_conflict(
-            conflict_target=[models.JobHighlight.id],
-            preserve=[models.JobHighlight.id],
-            update={
-                models.JobHighlight.highlight: job_highlight.job_highlight,
-                models.JobHighlight.job: job_highlight.job,
-            },
-        )
-        return query.execute()
+        with Session(models.engine) as session:
+            results = session.get(models.JobHighlight.id, job_highlight.id)
+            if results is None:
+                results = job_highlight
+            for key, value in job_highlight:
+                setattr(results, key, value)
+            session.add(results)
+            session.commit()
+            session.refresh(results)
+            return results
 
     @staticmethod
-    def delete_job_highlight(job_highlight_id: int) -> int:
+    def delete_job_highlight(job_highlight_id: int) -> None:
         """
         Remove a job highlight with the given ID.
 
-        Args:
-            job_highlight_id: An integer specifying the ID of the job highlight to
-                remove
-        Returns:
-            An integer indicating the number of job highlight records affected by the
-                operation.
+        :param job_highlight_id: The ID of the job highlight to remove
+        :type job_highlight_id: int
         """
         with Session(models.engine) as session:
-            item = session.get(models.BasicInfo, job_highlight_id)
-            if not item:
+            results = session.get(models.BasicInfo, job_highlight_id)
+            if results is None:
                 raise KeyError("The requested job highlight does not exist")
-            session.delete(item)
+            session.delete(results)
             session.commit()
 
     @staticmethod
-    def get_all_preferences() -> schema.Preferences:
+    def get_all_preferences() -> models.Preferences:
         """
         Retrieve all preferences stored in the database.
 
-        Args:
-            None
-        Returns:
-            A dict containing the k/v pairs of all preferences and values.
+        :return: k/v pairs of all preferences and values
+        :rtype: schema.Preferences
         """
         with Session(models.engine) as session:
             statement = select(models.Preference)
-            results = session.exec(statement)
-            prefs = results.all()
-        resp = {}
-        for pref in prefs:
-            try:
-                resp[pref.preference] = ast.literal_eval(pref.value)
-            except (ValueError, SyntaxError):
-                resp[pref.preference] = pref.value
-        return resp
+            results = session.exec(statement).all()
+            model = dict()
+            for r in results:
+                try:
+                    model[r.preference] = ast.literal_eval(r.value)
+                except (ValueError, SyntaxError):
+                    model[r.preference] = r.value
+            resp = models.Preferences.parse_obj(model)
+            return resp
 
     @staticmethod
-    def get_preference(preference: str) -> str:
+    def get_preference(preference: str) -> models.Preference:
         """
         Retrieve the value of a specified preference.
 
-        Args:
-            preference: A string specifying the title of a preference (e.g. `OS`)
-        Returns:
-            A string specifying the value of the requested preference.
-        Raises:
-            KeyError: No value for the given preference is stored in the DB.
+        :param preference: The title of a preference (e.g. `OS`)
+        :type preference: str
+        :return: The value of the requested preference
+        :rtype: str
+        :raises KeyError: No value for the given preference is stored in the DB.
         """
         with Session(models.engine) as session:
             statement = select(models.Preference).where(
@@ -623,36 +570,40 @@ class ResumeController:
             results = session.exec(statement).first()
             if results is None:
                 raise KeyError(f"No value for {preference} stored in the DB.")
-            return results.value
+            return results
 
     @staticmethod
-    def upsert_preference(preference: schema.Preferences) -> int:
+    def upsert_preference(preference: models.Preference) -> models.Preference:
         """
         Create or updates an existing preference.
 
-        Args:
-            preference: A dict containing a preference and its value
-        Returns:
-            An integer specifying the ID of the preference object.
+        :param preference: A k/v pair of a preference and its value
+        :type preference: schema.Preference
+        ;return: The updated preference and value
+        :rtype: models.py.bak.Preference
         """
-        query = models.Preference.insert(
-            preference=preference.preference, value=preference.value
-        ).on_conflict(
-            conflict_target=[models.Preference.preference],
-            preserve=[models.Preference.preference],
-            update={models.Preference.value: preference.value},
-        )
-        return query.execute()
+        with Session(models.engine) as session:
+            statement = select(models.Preference).where(
+                models.Preference.preference == preference.preference
+            )
+            results = session.exec(statement).first()
+            if results is None:
+                results = preference
+            for key, value in preference.dict(exclude_unset=True).items():
+                setattr(results, key, value)
+            session.add(results)
+            session.commit()
+            session.refresh(results)
+            return results
 
     @staticmethod
     def delete_preference(preference: str) -> None:
         """
         Delete a preference item.
 
-        Args:
-            preference: A string specifying the preference to be deleted
-        Raises:
-            KeyError: The requested preference does not exist.
+        :param preference: The name of the preference to be deleted
+        :type preference: str
+        :raises KeyError: The requested preference does not exist.
         """
         with Session(models.engine) as session:
             statement = select(models.Preference).where(
@@ -665,103 +616,78 @@ class ResumeController:
             session.commit()
 
     @staticmethod
-    def get_certifications(valid_only: bool = False) -> schema.CertificationHistory:
+    def get_certifications(valid_only: bool = False) -> List[models.Certification]:
         """
         Retrieve all configured certifications.
 
         Can optionally filter to only currently-valid certifications.
 
-        Args:
-            valid_only: A boolean specifying whether to limit the results to only
-                currently-valid certifications (optional, defaults to False)
-        Returns:
-            A list of certifications and their info.
+        :param valid_only: Whether to limit the results to only currently-valid certifications, defaults to False
+        :type valid_only: bool, optional
+        :return: All certifications and their info
+        :rtype: List[schema.Certification]
         """
         with Session(models.engine) as session:
             statement = select(models.Certification)
             if valid_only:
                 statement = statement.where(models.Certification.valid)
-            certifications = session.exec(statement).all()
-            resp = []
-            for c in certifications:
-                cert = {
-                    "cert": c.cert,
-                    "full_name": c.full_name,
-                    "time": c.time,
-                    "valid": c.valid,
-                    "progress": c.progress,
-                }
-                resp.append(cert)
-            return resp
+            results = session.exec(statement).all()
+            return results
 
     @staticmethod
-    def get_certification_by_name(certification: str) -> schema.Certification:
+    def get_certification_by_name(certification: str) -> models.Certification:
         """
         Retrieve information about a specified certification.
 
-        Args:
-            certification: A string specifying the name of the certification
-        Returns:
-            A dict containing information about the requested certification.
-        Raises:
-            KeyError: The certification does not exist in the DB.
+        :param certification: The name of the certification
+        :type certification: str
+        :return: Information about the requested certification
+        :rtype: schema.Certification
+        :raises KeyError: The certification does not exist in the DB.
         """
         with Session(models.engine) as session:
             statement = select(models.Certification).where(
                 models.Certification.cert == certification
             )
-            item = session.exec(statement).first()
-        if not item:
-            raise KeyError("Certification not implemented in the DB.")
-        resp = {
-            "cert": item.cert,
-            "full_name": item.full_name,
-            "time": item.time,
-            "valid": item.valid,
-            "progress": item.progress,
-        }
-        return resp
+            results = session.exec(statement).first()
+            if not results:
+                raise KeyError("Certification not implemented in the DB.")
+            return results
 
     @staticmethod
-    def upsert_certification(certification: schema.Certification) -> int:
+    def upsert_certification(
+        certification: models.Certification,
+    ) -> models.Certification:
         """
         Create or update a certification.
 
-        Args:
-            certification: A Certification object
-        Returns:
-            An integer indicating the ID of the certification object.
+        :param certification: A certification to update or add
+        :type certification: schema.Certification
+        :return: The updated certification details
+        :rtype: schema.Certification
         """
-        query = models.Certification.insert(
-            cert=certification.cert,
-            full_name=certification.full_name,
-            time=certification.time,
-            valid=certification.valid,
-            progress=certification.progress,
-        ).on_conflict(
-            conflict_target=[models.Certification.cert],
-            preserve=[models.Certification.cert],
-            update={
-                models.Certification.full_name: certification.full_name,
-                models.Certification.time: certification.time,
-                models.Certification.valid: certification.valid,
-                models.Certification.progress: certification.valid,
-            },
-        )
-        return query.execute()
+        with Session(models.engine) as session:
+            statement = select(models.Certification).where(
+                models.Certification.cert == certification.cert
+            )
+            results = session.exec(statement).first()
+            if results is None:
+                results = certification
+            for key, value in certification.dict(exclude_unset=True).items():
+                setattr(results, key, value)
+            session.add(results)
+            session.commit()
+            session.refresh(results)
+            return results
 
     @staticmethod
-    def delete_certification(cert: str) -> int:
+    def delete_certification(cert: str) -> None:
         """
         Remove a certification by its name.
 
-        Args
-            cert: A string specifying the certification to remove
-        Returns:
-            An integer indicating the number of certifications impacted by the
-                operation.
-        Raises:
-            KeyError: The requested certification does not exist
+        :param cert: The name of the certification to remove
+        :type cert: str
+        :raises KeyError: The requested certification does not exist
         """
         with Session(models.engine) as session:
             statement = select(models.Certification).where(
@@ -774,61 +700,51 @@ class ResumeController:
             session.commit()
 
     @staticmethod
-    def get_side_projects() -> schema.SideProjects:
+    def get_side_projects() -> List[models.SideProject]:
         """
         Retrieve information about all side projects stored in the DB.
 
-        Args:
-            None
-        Returns:
-            A list with info about each configured side project.
+        :return: Info about each configured side project
+        :rtype: schema.SideProjects
         """
         with Session(models.engine) as session:
             statement = select(models.SideProject)
             results = session.exec(statement).all()
-            resp = [
-                {
-                    "title": p.title, "tagline": p.tagline, "link": p.link
-                } for p in results
-            ]
-            return resp
+            return results
 
     @staticmethod
-    def get_side_project(project: str) -> schema.SideProject:
+    def get_side_project(project: str) -> models.SideProject:
         """
         Retrieve information about the requested side project.
 
-        Args:
-            project: A string specifying the title of the project to look up
-        Returns:
-            A dict containing details about the request project.
-        Raises:
-            KeyError: The requested project does not exist in the DB.
+        :param project: The title of the project to look up
+        :type project: str
+        :return: Details about the requested project
+        :rtype: schema.SideProject
+        :raises KeyError: The requested project does not exist in the DB
         """
         with Session(models.engine) as session:
             statement = select(models.SideProject).where(
                 models.SideProject.title == project
             )
-            results = session.exec(statement)
-            p = results.one()
-            if not p:
+            results = session.exec(statement).first()
+            if not results:
                 raise KeyError("The requested project does not exist.")
-            resp = {"title": p.title, "tagline": p.tagline, "link": p.link}
-        return resp
+            return results
 
     @staticmethod
-    def upsert_side_project(side_project: schema.SideProjects) -> models.SideProject:
+    def upsert_side_project(side_project: models.SideProject) -> models.SideProject:
         """
         Insert or update project depending on whether it already has an entry.
 
-        Args:
-            side_project: A dictionary containing the details of the side project
-        Returns:
-            An integer indicating the ID of the side proect entry.
+        :param side_project: Details of the side project
+        :type side_project: schema.SideProject
+        :return: The updated or created side project
+        :rtype: models.py.bak.SideProject
         """
         with Session(models.engine) as session:
             statement = select(models.SideProject).where(
-                models.SideProject.title == side_project["title"]
+                models.SideProject.title == side_project.title
             )
             results = session.exec(statement).first()
             if results is None:
@@ -845,12 +761,9 @@ class ResumeController:
         """
         Delete a side project given the title of the project.
 
-        Args:
-            title: A string specifying the title of the project.
-        Returns:
-            An integer indicating the number of affected entries.
-        Raises:
-            KeyError: The requested side project does not exist.
+        :param title: The title of the project.
+        :type title: str
+        :raises KeyError: The requested side project does not exist.
         """
         with Session(models.engine) as session:
             statement = select(models.SideProject).where(
@@ -863,52 +776,64 @@ class ResumeController:
             session.commit()
 
     @staticmethod
-    def get_interests_by_category(category: str) -> Dict[str, List[str]]:
+    def get_interests_by_category(category: str) -> List[models.Interest]:
         """
-        Retrive a list of all configured technical interests.
+        Retrieve a list of all configured technical interests.
 
-        Args:
-            A string specifying the category of interest to return
-        Returns:
-            A list of all configured interests of the requested category.
+        :param category: The category of interest to return
+        :type category: str
+        :return: All configured interests of the requested category
+        :rtype: dict
         """
         with Session(models.engine) as session:
-            statement = select(models.Interest).join(
-                models.InterestType, isouter=True
-            ).where(
-                models.InterestType.interest_type == category
+            statement = (
+                select(models.Interest)
+                .join(models.InterestType, isouter=True)
+                .where(models.InterestType.interest_type == category)
             )
             results = session.exec(statement).all()
-        return {category: [interest.interest for interest in results]}
+        return results
 
     @staticmethod
-    def upsert_interest(category: schema.InterestTypes, interest: str) -> int:
+    def upsert_interest(
+        category: models.InterestTypes, interest: str
+    ) -> models.Interest:
         """
         Add a new interest.
 
-        Args:
-            category: A string contining the category of the itnerest
-            interest: A string containing the value of the interest
-        Returns:
-            An integer indicating the ID of the interest.
+        :param category: The category of the interest
+        :type category: str
+        :param interest: The value of the interest
+        :type interest: str
+        :return: The updated or created interest
+        :rtype: models.py.bak.Interest
         """
-        cat = models.InterestType.get(models.InterestType.interest_type == category).id
-        query = models.Interest.insert(
-            interest=interest, interest_type=cat
-        ).on_conflict_ignore()
-        return query.execute()
+        with Session(models.engine) as session:
+            statement = select(models.InterestType).where(
+                models.InterestType.interest_type == category
+            )
+            category_id = session.exec(statement).one()
+            statement = select(models.Interest).where(
+                models.Interest.interest == interest
+            )
+            results = session.exec(statement).first()
+            if results is None:
+                results = models.Interest()
+            setattr(results, "interest", interest)
+            setattr(results, "interest_type_id", category_id.id)
+            session.add(results)
+            session.commit()
+            session.refresh(results)
+            return results
 
     @staticmethod
     def delete_interest(interest: str) -> None:
         """
         Delete an interest.
 
-        Args:
-            interest: A string specifying an interest to remove
-        Returns:
-            An integer indicating the number of interests affected by the operation.
-        Raises:
-            KeyError: The requested interest does not exist.
+        :param interest: The interest to remove
+        :type interest: str
+        :raises KeyError: The requested interest does not exist.
         """
         with Session(models.engine) as session:
             statement = select(models.Interest).where(
@@ -921,50 +846,41 @@ class ResumeController:
             session.commit()
 
     @classmethod
-    def get_all_interests(cls) -> Dict[str, List[str]]:
+    def get_all_interests(cls) -> models.InterestsResponse:
         """
         Retrieve all interests personal and technical.
 
-        Args:
-            None
-        Retrns:
-            A dict containing all interests.
+        :return: All interests
+        :rtype: dict
         """
-        return {
-            **ResumeController.get_interests_by_category("technical"),
-            **ResumeController.get_interests_by_category("personal"),
-        }
+        results = models.InterestsResponse()
+        results.personal = [i.interest for i in ResumeController.get_interests_by_category("personal")]
+        results.technical = [i.interest for i in ResumeController.get_interests_by_category("technical")]
+        return results
 
     @staticmethod
-    def get_social_links() -> schema.SocialLinks:
+    def get_social_links() -> List[models.SocialLink]:
         """
         Retrieve all social links.
 
-        Args:
-            None
-        Returns:
-            A dict containing a link to all configured social platforms.
+        :return: Links to all configured social platforms.
+        :rtype: dict
         """
         with Session(models.engine) as session:
             statement = select(models.SocialLink)
             results = session.exec(statement).all()
-            resp = []
-            for link in results:
-                resp.append({"platform": link.platform, "link": link.link})
-            return {"social_links": resp}
+            return results
 
     @staticmethod
-    def get_social_link(platform: str) -> schema.SocialLink:
+    def get_social_link(platform: str) -> models.SocialLink:
         """
-        Retrive a link to the requested social platform.
+        Retrieve a link to the requested social platform.
 
-        Args:
-            platform: A string specifying the desired social platform whose link to
-                return.
-        Returns:
-            A dict containing the link to the requested platform.
-        Raises:
-            KeyError: The requested platform is not configured.
+        :param platform: The desired social platform whose link to return
+        :type platform: str
+        :return: A link to the requested platform.
+        :rtype: schema.SocialLink
+        :raises KeyError: The requested platform is not configured.
         """
         with Session(models.engine) as session:
             statement = select(models.SocialLink).where(
@@ -973,43 +889,45 @@ class ResumeController:
             results = session.exec(statement).first()
             if results is None:
                 raise KeyError("The requested platform is not configured")
-            return {"platform": results.platform, "link": results.link}
+            return results
 
     @staticmethod
-    def upsert_social_link(social_link: schema.SocialLink) -> int:
+    def upsert_social_link(social_link: models.SocialLink) -> models.SocialLink:
         """
         Add or update a social link.
 
-        Args:
-            social_link: A SocialLink object containing the name of the platform and a
-                link to the user's account on that platform
-        Returns:
-            An integer indicating the ID of the SocialLink object.
-        """
-        query = models.BasicInfo.insert(
-            platform=social_link.platform, link=social_link.link
-        ).on_conflict(
-            conflict_target=[models.SocialLink.platform],
-            preserve=[models.SocialLink.platform],
-            update={models.SocialLink.link: social_link.link},
-        )
-        return query.execute()
-
-    @staticmethod
-    def delete_social_link(platform: str):
-        """
-        Remove a social link given the platform.
-
-        Args:
-            platform: A string specifying the social platform to remove
-        Returns:
-            An integer specifying the number of affected social links.
-        Returns:
-            KeyError: The requested platform does not exist.
+        :param social_link: Info for a social platform
+        :type social_link: models.py.bak.SocialLink
+        :returns: The updated configuration for the social platform
+        :rtype models.SocialLink:
         """
         with Session(models.engine) as session:
             statement = select(models.SocialLink).where(
-                models.SocialLink.platform == platform)
+                models.SocialLink.platform == social_link.platform
+            )
+            results = session.exec(statement).first()
+            if results is None:
+                results = social_link
+            for key, value in social_link.dict(exclude_unset=True).items():
+                setattr(results, key, value)
+            session.add(results)
+            session.commit()
+            session.refresh(results)
+            return results
+
+    @staticmethod
+    def delete_social_link(platform: str) -> None:
+        """
+        Remove a social link given the platform.
+
+        :param platform: The name of the social platform to remove
+        :type platform: str
+        :raises KeyError: The requested platform does not exist
+        """
+        with Session(models.engine) as session:
+            statement = select(models.SocialLink).where(
+                models.SocialLink.platform == platform
+            )
             results = session.exec(statement).first()
             if results is None:
                 raise KeyError("The requested platform does not exist")
@@ -1017,79 +935,71 @@ class ResumeController:
             session.commit()
 
     @staticmethod
-    def get_skills() -> Dict[str, List[Dict[str, Union[str, int]]]]:
+    def get_skills() -> List[models.Skill]:
         """
-        Retrive a list of all configured skills.
+        Retrieve a list of all configured skills.
 
-        Args:
-            None
-        Returns:
-            A list of configured skills and their respective details.
+        :return: All configured skills and their respective details
+        :rtype: dict
         """
         with Session(models.engine) as session:
             statement = select(models.Skill)
             results = session.exec(statement).all()
-        return {
-            "skills": [
-                {"skill": skill.skill, "level": skill.level}
-                for skill in results
-            ]
-        }
+        return results
 
     @staticmethod
-    def get_skill(skill: str) -> schema.Skill:
+    def get_skill(skill: str) -> models.Skill:
         """
         Retrieve details about the requested skill.
 
         Args:
             skill: A string specifying the desired skill
-        Returns:
-            A dict contatining details about the requested skill
-        Raises:
-            KeyError: The requested skill is not listed.
+        :return: Details about the requested skill
+        :rtype: dict
+        :raises KeyError: The requested skill is not listed
         """
         with Session(models.engine) as session:
-            statement = select(models.Skill).where(
-                models.Skill.skill == skill
-            )
+            statement = select(models.Skill).where(models.Skill.skill == skill)
             results = session.exec(statement).first()
             if results is None:
                 raise KeyError("The requested skill does not exist (yet!)")
-            return {"skill": results.skill, "level": results.level}
+            return results
 
     @staticmethod
-    def upsert_skill(skill: schema.Skill) -> int:
+    def upsert_skill(skill: models.Skill) -> models.Skill:
         """
         Create a new skill or updates an existing skill.
 
-        Args:
-            skill: A Skill object specifying the name of the skill and the skill level.
-        Returns:
-            An integer indicating the ID of the skill.
+        :param skill: Details of the skill to update or add
+        :type: schema.Skill
+        :return: Details about the updated skill
+        :rtype: models.py.bak.Skill
         """
-        query = models.BasicInfo.insert(skill=skill).on_conflict(
-            conflict_target=[models.Skill.skill],
-            preserve=[models.Skill.skill],
-            update={models.Skill.level: skill.level},
-        )
-        return query.execute()
+        with Session(models.engine) as session:
+            statement = select(models.BasicInfo).where(
+                models.Skill.skill == skill.skill
+            )
+            results = session.exec(statement).first()
+            if results is None:
+                results = skill
+            for key, value in skill.dict(exclude_unset=True).items():
+                setattr(results, key, value)
+            session.add(results)
+            session.commit()
+            session.refresh(results)
+            return results
 
     @staticmethod
-    def delete_skill(skill: str) -> int:
+    def delete_skill(skill: str) -> None:
         """
         Delete a Skill.
 
-        Args:
-            skill: A string indicating the name of the skill to remove.
-        Returns:
-            An integer indicating the number of objects affected by the operation.
-        Raises:
-            KeyError: The requested skill does not exist.
+        :param skill: The name of the skill to remove
+        :type skill: str
+        :raises KeyError: The requested skill does not exist
         """
         with Session(models.engine) as session:
-            statement = select(models.Skill).where(
-                models.Skill.skill == skill
-            )
+            statement = select(models.Skill).where(models.Skill.skill == skill)
             results = session.exec(statement).first()
             if results is None:
                 raise KeyError("The requested skill does not exist")
@@ -1097,31 +1007,27 @@ class ResumeController:
             session.commit()
 
     @staticmethod
-    def get_competencies() -> List[str]:
+    def get_competencies() -> List[models.Competency]:
         """
         Retrieve a list of configured competencies.
 
-        Args:
-            None
-        Returns:
-            A list of configured competencies.
+        :return: All configured competencies.
+        :rtype: list
         """
         with Session(models.engine) as session:
             statement = select(models.Competency)
             results = session.exec(statement).all()
-            return {
-                "competencies": [comp.competency for comp in results]
-            }
+            return results
 
     @staticmethod
-    def upsert_competency(competency: str) -> int:
+    def upsert_competency(competency: str) -> models.Competency:
         """
         Create a new competency.
 
-        Args:
-            competency: A string specifying the competency
-        Returns:
-            An integer indicating the ID of the competency.
+        :param competency: The competency to add
+        :type competency: str
+        :return: The updated competency
+        :rtype: dict
         """
         with Session(models.engine) as session:
             statement = select(models.Competency).where(
@@ -1133,22 +1039,16 @@ class ResumeController:
             session.add(results)
             session.commit()
             session.refresh(results)
-            return {
-                "competencies": results.competency
-            }
+            return results
 
     @staticmethod
     def delete_competency(competency: str) -> None:
         """
         Remove a competency string.
 
-        Args:
-            competency: A string specifying the competency to remove.
-        Returns:
-            An integer indicating the number of competency objects affected by the
-                operation.
-        Raises:
-            KeyError: The requested competency does not exist.
+        :param competency: The competency to remove
+        :param competency: str
+        :raises KeyError: The requested competency does not exist.
         """
         with Session(models.engine) as session:
             statement = select(models.Competency).where(
@@ -1161,24 +1061,24 @@ class ResumeController:
             session.commit()
 
     @classmethod
-    def get_full_resume(cls) -> dict:
+    def get_full_resume(cls) -> models.FullResume:
         """
         Assemble all elements of the resume into a single response.
 
-        Args:
-            None
-        Returns:
-            A dict containing all elements of the resume.
+        :return: All elements of the resume
+        :rtype: modes.FullResume
         """
-        resp = {}
-        resp["basic_info"] = ResumeController.get_basic_info()
-        resp["experience"] = ResumeController.get_experience()
-        resp["education"] = ResumeController.get_all_education_history()
-        resp["certifications"] = ResumeController.get_certifications()
-        resp["side_projects"] = ResumeController.get_side_projects()
-        resp["interests"] = ResumeController.get_all_interests()
-        resp["social_links"] = ResumeController.get_social_links()["social_links"]
-        resp["skills"] = ResumeController.get_skills()["skills"]
-        resp["preferences"] = ResumeController.get_all_preferences()
-        resp["competencies"] = ResumeController.get_competencies()["competencies"]
-        return resp
+        # TODO: Use model instead of raw dict
+        results = dict()
+        results["basic_info"] = ResumeController.get_basic_info()
+        results["experience"] = ResumeController.get_experience()
+        results["education"] = ResumeController.get_all_education_history()
+        results["certifications"] = ResumeController.get_certifications()
+        results["side_projects"] = ResumeController.get_side_projects()
+        results["interests"] = ResumeController.get_all_interests()
+        results["social_links"] = ResumeController.get_social_links()
+        results["skills"] = ResumeController.get_skills()
+        results["preferences"] = ResumeController.get_all_preferences()
+        results["competencies"] = ResumeController.get_competencies()
+        response = models.FullResume.parse_obj(results)
+        return response
