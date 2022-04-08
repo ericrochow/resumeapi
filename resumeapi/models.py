@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+from enum import Enum
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 
+from pydantic import BaseModel, EmailStr
 from sqlmodel import Field, SQLModel, UniqueConstraint, create_engine
 
 
@@ -19,11 +21,65 @@ class User(SQLModel, table=True):
     disabled: bool = Field(default=False)
 
 
+class Users(BaseModel):
+    __root__: List[User]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "users": [
+                    {"username": "leeroy", "disabled": True},
+                    {"username": "jenkins", "disabled": False},
+                ]
+            }
+        }
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "access_token": "long_bearer_token_here",
+                "token_type": "bearer",
+            }
+        }
+
+
 class BasicInfo(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("fact"),)
     id: Optional[int] = Field(default=None, primary_key=True)
     fact: str = Field()
     value: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "fact": "name",
+                "value": "John Jacobs",
+            }
+        }
+
+
+class BasicInfos(BaseModel):
+    name: str
+    pronouns: List[str]
+    email: EmailStr
+    phone: str
+    about: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "name": "John Jacobs",
+                "pronouns": "['they', 'them']",
+                "email": "email@domain.tld",
+                "phone": "+1 (555) 555-5555",
+                "about": "I am job.",
+            }
+        }
 
 
 class Education(SQLModel, table=True):
@@ -32,6 +88,17 @@ class Education(SQLModel, table=True):
     degree: str
     graduation_date: int
     gpa: float
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "institution": "University of Oxford",
+                "degree": "Bachelor of Fine Arts in Comma Usage",
+                "graduation_date": 2001,
+                "gpa": 4.0,
+            }
+        }
 
 
 class Job(SQLModel, table=True):
@@ -42,6 +109,56 @@ class Job(SQLModel, table=True):
     job_title: str
     job_summary: str
     time: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "employer": "Acme, LLC",
+                "employer_summary": "Acme, LLC makes or sells something I think",
+                "job_title": "Chief Scotch Officer",
+                "job_summary": "Report to my uncle the CEO and attend meetings",
+                "details": [{"id": 1, "detail": "Various duties as assigned"}],
+                "highlights": [
+                    {
+                        "id": 1,
+                        "highlight": "I once made my chair swivel around 64 times"
+                                     " without getting sick",
+                    }
+                ],
+            }
+        }
+
+
+class JobResponse(BaseModel):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    employer: str
+    employer_summary: str
+    location: str
+    job_title: str
+    job_summary: str
+    time: str
+    details: Optional[list]
+    highlights: Optional[list]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "employer": "Acme, LLC",
+                "employer_summary": "Acme, LLC makes or sells something I think",
+                "job_title": "Chief Scotch Officer",
+                "job_summary": "Report to my uncle the CEO and attend meetings",
+                "details": [{"id": 1, "detail": "Various duties as assigned"}],
+                "highlights": [
+                    {
+                        "id": 1,
+                        "highlight": "I once made my chair swivel around 64 times"
+                        " without getting sick",
+                    }
+                ],
+            }
+        }
 
 
 class JobHighlight(SQLModel, table=True):
@@ -65,23 +182,22 @@ class Certification(SQLModel, table=True):
     valid: bool
     progress: int
 
+    class Config:
+        schema_extra = {
+            "example": {
+                "cert": "CCIE",
+                "full_name": "Cisco Certified Internetwork Expert",
+                "time": "2001 - Present",
+                "valid": True,
+                "progress": 100,
+            }
+        }
+
 
 class Competency(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("competency"),)
     id: Optional[int] = Field(default=None, primary_key=True)
     competency: str = Field()
-
-
-class PersonalInterest(SQLModel, table=True):
-    __table_args__ = (UniqueConstraint("interest"),)
-    id: Optional[int] = Field(default=None, primary_key=True)
-    interest: str = Field()
-
-
-class TechnicalInterest(SQLModel, table=True):
-    __table_args__ = (UniqueConstraint("interest"),)
-    id: Optional[int] = Field(default=None, primary_key=True)
-    interest: str = Field()
 
 
 class InterestType(SQLModel, table=True):
@@ -90,13 +206,29 @@ class InterestType(SQLModel, table=True):
     interest_type: str = Field(index=True)
 
 
+class InterestTypes(str, Enum):
+    personal = "personal"
+    technical = "technical"
+
+
 class Interest(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("interest"),)
     id: Optional[int] = Field(default=None, primary_key=True)
-    interest_type_id: Optional[int] = Field(
-        default=None, foreign_key="interesttype.id"
-    )
+    interest_type_id: Optional[int] = Field(default=None, foreign_key="interesttype.id")
     interest: str = Field()
+
+
+class InterestsResponse(BaseModel):
+    personal: Optional[List[str]]
+    technical: Optional[List[str]]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "personal": ["Movies", "Sports", "Books"],
+                "technical": ["Python", "Rust", "Routing"],
+            }
+        }
 
 
 class Preference(SQLModel, table=True):
@@ -106,12 +238,56 @@ class Preference(SQLModel, table=True):
     value: str
 
 
+class Preferences(BaseModel):
+    OS: List[str]
+    EDITOR: str
+    TERMINAL: str
+    COLOR_THEME: Optional[str]
+    CODE_COMPLETION: Optional[str]
+    CODE_STYLE: Optional[str]
+    LANGUAGES: List[str]
+    TEST_SUITES: List[str]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "OS": ["Favorite OS 1", "Favorite OS 2"],
+                "EDITOR": "Name of preferred text editor/IDE",
+                "TERM": "Terminal emulator of preference",
+                "COLOR_SCHEME": "Favorite text color scheme",
+                "CODE_COMPLETION": "Favorite code completion engine",
+                "CODE_STYLE": "Preferred code style if applicable",
+                "LANGUAGES": ["Language 1", "Language 2"],
+                "TEST_SUITES": ["Test suite 1", "Test Suite 2"],
+            }
+        }
+
+
 class SideProject(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("title"),)
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field()
     tagline: str
     link: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "title": "my_project",
+                "tagline": "Useful description of the project",
+                "link": "https://github.com/my_user/my_project",
+            }
+        }
+
+
+class SocialLinkEnum(str, Enum):
+    LinkedIn = "linkedin"
+    Github = "github"
+    Twitter = "twitter"
+    Matrix_im = "matrix_im"
+    Website = "website"
+    Resume = "resume"
+    Facebook = "facebook"
 
 
 class SocialLink(SQLModel, table=True):
@@ -120,12 +296,34 @@ class SocialLink(SQLModel, table=True):
     platform: str = Field()
     link: str
 
+    class Config:
+        schema_extra = {
+            "platform": "linkedin",
+            "link": "https://linkedin.com/in/my_user",
+        }
+
 
 class Skill(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("skill"),)
     id: Optional[int] = Field(default=None, primary_key=True)
     skill: str = Field()
     level: int
+
+    class Config:
+        schema_extra = {"example": {"skill": "Git", "level": 75}}
+
+
+class FullResume(BaseModel):
+    basic_info: BasicInfos
+    certifications: List[Certification]
+    competencies: List[str]
+    education: List[Education]
+    experience: List[Job]
+    interests: Dict[InterestTypes, List[str]]
+    preferences: Preferences
+    side_projects: List[SideProject]
+    skills: List[Skill]
+    social_links: List[SocialLink]
 
 
 def configure_engine(engine_echo: bool = False):
@@ -142,11 +340,11 @@ def configure_engine(engine_echo: bool = False):
             "SQLITE_DB_PATH", default=f"{default_path}/{db_name}.db"
         )
         logger.debug("attempting to use sqlite database stored at %s", sqlite_file)
-        engine = create_engine(f"sqlite:///{sqlite_file}", echo=engine_echo)
+        sql_engine = create_engine(f"sqlite:///{sqlite_file}", echo=engine_echo)
     elif db_type.lower() == "postgresql":
         logger.debug("postgresql configuration db type detected")
         db_port = os.getenv("DB_PORT", default=5432)
-        engine = create_engine(
+        sql_engine = create_engine(
             f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}",
             echo=engine_echo,
         )
@@ -156,10 +354,9 @@ def configure_engine(engine_echo: bool = False):
             " postgres."
         )
     logger.debug("creating all tables that do not exist")
-    SQLModel.metadata.create_all(engine)
+    SQLModel.metadata.create_all(sql_engine)
     logger.debug("finished creating tables")
-    return engine
+    return sql_engine
 
 
 engine = configure_engine()
-# session = Session(engine)
