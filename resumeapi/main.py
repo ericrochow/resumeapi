@@ -63,9 +63,9 @@ async def get_current_active_user(
     Determine whether the currently-authenticated user is disabled or active.
 
     :param current_user: The user to check for disabled status
-    :type current_user: models.py.bak.User
+    :type current_user: models.User
     :return: The same object passed in
-    :rtype: models.py.bak.User
+    :rtype: models.User
     :raises HttpException: The currently-active user is disabled.
     """
     if current_user.disabled:
@@ -81,6 +81,8 @@ async def get_current_active_user(
     description="Log into the API to generate a token",
     response_description="Token info",
     response_model=models.Token,
+    responses={status.HTTP_401_UNAUTHORIZED: {"model": models.Token}},
+    status_code=status.HTTP_201_CREATED,
     tags=["Authentication"],
 )
 async def login_for_access_token(
@@ -99,7 +101,7 @@ async def login_for_access_token(
     valid_user = auth_control.authenticate_user(form_data.username, form_data.password)
     if not valid_user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -108,7 +110,10 @@ async def login_for_access_token(
     access_token = auth_control.create_access_token(
         data={"sub": valid_user.username}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}  # type: ignore
+    response = models.Token(  # nosec: B106 - "bearer" is the type not the value
+        access_token=access_token, token_type="bearer"
+    )
+    return response
 
 
 # GET methods for read-only operations
@@ -154,7 +159,13 @@ async def get_full_resume() -> models.FullResume:
     return resume.get_full_resume()
 
 
-@app.get("/pdf", summary="Request PDF of my full resume", tags=["Full Resume"])
+@app.get(
+    "/pdf",
+    summary="Request PDF of my full resume",
+    responses={status.HTTP_404_NOT_FOUND: {"model": FileResponse}},
+    status_code=status.HTTP_200_OK,
+    tags=["Full Resume"],
+)
 async def get_resume_pdf() -> FileResponse:
     """Request PDF of my full resume."""
     pdf = "ericrochowresume.pdf"
@@ -171,6 +182,8 @@ async def get_resume_pdf() -> FileResponse:
     "/html",
     summary="Request HTML rendering of my resume",
     response_description="HTML rendering of resume",
+    responses={status.HTTP_404_NOT_FOUND: {"models": RedirectResponse}},
+    status_code=status.HTTP_301_MOVED_PERMANENTLY,
     tags=["Full Resume"],
 )
 async def get_resume_html() -> RedirectResponse:
@@ -183,6 +196,7 @@ async def get_resume_html() -> RedirectResponse:
     summary="Request basic info about me",
     response_description="About Me",
     response_model=models.BasicInfos,
+    status_code=status.HTTP_200_OK,
     tags=["Basic Info"],
 )
 async def get_basic_info() -> models.BasicInfos:
@@ -195,6 +209,8 @@ async def get_basic_info() -> models.BasicInfos:
     summary="Request a single basic info fact",
     response_description="Basic info fact",
     response_model=models.BasicInfo,
+    responses={status.HTTP_404_NOT_FOUND: {"models": models.BasicInfo}},
+    status_code=status.HTTP_200_OK,
     tags=["Basic Info"],
 )
 async def get_basic_info_fact(fact: str) -> models.BasicInfo:
@@ -213,6 +229,7 @@ async def get_basic_info_fact(fact: str) -> models.BasicInfo:
     summary="Request my full education history",
     response_description="Education history",
     response_model=List[models.Education],
+    status_code=status.HTTP_200_OK,
     tags=["Education"],
 )
 async def get_education() -> List[models.Education]:
@@ -226,6 +243,7 @@ async def get_education() -> List[models.Education]:
     response_description="Education history item",
     response_model=models.Education,
     responses={status.HTTP_404_NOT_FOUND: {"model": models.Education}},
+    status_code=status.HTTP_200_OK,
     tags=["Education"],
 )
 async def get_education_item(index: int) -> models.Education:
@@ -248,6 +266,7 @@ async def get_education_item(index: int) -> models.Education:
     summary="Request full job history",
     response_description="Job history",
     response_model=List[models.JobResponse],
+    status_code=status.HTTP_200_OK,
     tags=["Experience"],
 )
 async def get_experience() -> List[models.JobResponse]:
@@ -261,6 +280,7 @@ async def get_experience() -> List[models.JobResponse]:
     response_description="Job history item",
     response_model=models.JobResponse,
     responses={status.HTTP_404_NOT_FOUND: {"model": models.JobResponse}},
+    status_code=status.HTTP_200_OK,
     tags=["Experience"],
 )
 async def get_experience_item(index: int) -> models.JobResponse:
@@ -285,6 +305,7 @@ async def get_experience_item(index: int) -> models.JobResponse:
     summary="Certification list",
     response_description="Certifications",
     response_model=List[models.Certification],
+    status_code=status.HTTP_200_OK,
     tags=["Certifications"],
 )
 async def get_certification_history(
@@ -306,6 +327,7 @@ async def get_certification_history(
     response_description="Certification",
     response_model=models.Certification,
     responses={status.HTTP_404_NOT_FOUND: {"model": models.Certification}},
+    status_code=status.HTTP_200_OK,
     tags=["Certifications"],
 )
 async def get_certification_item(
@@ -330,6 +352,7 @@ async def get_certification_item(
     summary="Side projects",
     response_description="Side projects",
     response_model=List[models.SideProject],
+    status_code=status.HTTP_200_OK,
     tags=["Side Projects"],
 )
 async def get_side_projects() -> List[models.SideProject]:
@@ -341,6 +364,8 @@ async def get_side_projects() -> List[models.SideProject]:
     "/side_projects/{project}",
     summary="Single side project",
     response_description="Side project",
+    responses={status.HTTP_404_NOT_FOUND: {"models": models.SideProject}},
+    status_code=status.HTTP_200_OK,
     tags=["Side Projects"],
 )
 async def get_side_project(project: str) -> models.SideProject:
@@ -363,6 +388,7 @@ async def get_side_project(project: str) -> models.SideProject:
     summary="Interests",
     response_description="Interests",
     response_model=models.InterestsResponse,
+    status_code=status.HTTP_200_OK,
     tags=["Interests"],
 )
 async def get_all_interests() -> models.InterestsResponse:
@@ -376,6 +402,7 @@ async def get_all_interests() -> models.InterestsResponse:
     response_description="Interests",
     response_model=List[models.Interest],
     response_model_exclude_none=True,
+    status_code=status.HTTP_200_OK,
     tags=["Interests"],
 )
 async def get_interests_by_category(
@@ -394,6 +421,7 @@ async def get_interests_by_category(
     summary="Social links",
     response_description="Social links",
     response_model=List[models.SocialLink],
+    status_code=status.HTTP_200_OK,
     tags=["Social"],
 )
 async def get_social_links() -> List[models.SocialLink]:
@@ -405,6 +433,8 @@ async def get_social_links() -> List[models.SocialLink]:
     "/social_links/{platform}",
     summary="Social link",
     response_description="Social link",
+    responses={status.HTTP_404_NOT_FOUND: {"models": models.SocialLink}},
+    status_code=status.HTTP_200_OK,
     tags=["Social"],
 )
 async def get_social_link_by_key(
@@ -429,6 +459,7 @@ async def get_social_link_by_key(
     summary="Skills",
     response_description="Skills",
     response_model=List[models.Skill],
+    status_code=status.HTTP_200_OK,
     tags=["Skills"],
 )
 async def get_skills() -> List[models.Skill]:
@@ -441,6 +472,8 @@ async def get_skills() -> List[models.Skill]:
     summary="Skill",
     response_description="Skill",
     response_model=models.Skill,
+    responses={status.HTTP_404_NOT_FOUND: {"model": models.Skill}},
+    status_code=status.HTTP_200_OK,
     tags=["Skills"],
 )
 async def get_skill(skill: str) -> models.Skill:
@@ -464,6 +497,7 @@ async def get_skill(skill: str) -> models.Skill:
     description="",
     response_description="Competencies",
     response_model=List[models.Competency],
+    status_code=status.HTTP_200_OK,
     tags=["Skills"],
 )
 async def get_competencies() -> List[models.Competency]:
@@ -476,6 +510,7 @@ async def get_competencies() -> List[models.Competency]:
     "/basic_info",
     summary="Create or update an existing fact",
     response_description="The body of the new or updated fact",
+    status_code=status.HTTP_201_CREATED,
     tags=["Basic Info"],
 )
 async def add_or_update_fact(
@@ -498,6 +533,7 @@ async def add_or_update_fact(
     summary="Create or update an education item",
     description="",
     response_description="ID of the new or updated education item",
+    status_code=status.HTTP_201_CREATED,
     tags=["Education"],
 )
 async def add_or_update_education(
@@ -522,6 +558,7 @@ async def add_or_update_education(
     "/experience",
     summary="Create or update an experience item",
     response_description="ID of the new or updated experience item",
+    status_code=status.HTTP_201_CREATED,
     tags=["Experience"],
 )
 async def add_or_update_experience(
@@ -548,6 +585,7 @@ async def add_or_update_experience(
     summary="Create or update a job detail",
     response_description="New or udpated job detail",
     response_model=models.JobDetail,
+    status_code=status.HTTP_201_CREATED,
     tags=["Experience"],
 )
 async def add_or_update_experience_detail(
@@ -571,6 +609,7 @@ async def add_or_update_experience_detail(
     summary="Create or update a job highlight",
     response_description="New or updated job highlight",
     response_model=models.JobHighlight,
+    status_code=status.HTTP_201_CREATED,
     tags=["Experience"],
 )
 async def add_or_update_experience_highlight(
@@ -594,6 +633,7 @@ async def add_or_update_experience_highlight(
     summary="Create or update a certification",
     response_description="ID of the new or updated certification",
     response_model=models.Certification,
+    status_code=status.HTTP_201_CREATED,
     tags=["Certifications"],
 )
 async def add_or_update_certification(
@@ -619,6 +659,7 @@ async def add_or_update_certification(
     summary="Create or update a side project",
     response_description="ID of the new or updated side project",
     response_model=models.SideProject,
+    status_code=status.HTTP_201_CREATED,
     tags=["Side Projects"],
 )
 async def add_or_update_side_project(
@@ -642,6 +683,7 @@ async def add_or_update_side_project(
     summary="Create or update an interest",
     response_description="ID of the new or updated interest",
     response_model=models.Interest,
+    status_code=status.HTTP_201_CREATED,
     tags=["Interests"],
 )
 async def add_or_update_interest(
@@ -665,6 +707,7 @@ async def add_or_update_interest(
     summary="Create or update a social link",
     response_description="The new or udpated social link",
     response_model=models.SocialLink,
+    status_code=status.HTTP_201_CREATED,
     tags=["Social"],
 )
 async def add_or_create_social_link(
@@ -686,6 +729,7 @@ async def add_or_create_social_link(
     "/skills",
     summary="Create or update a skill",
     response_description="The new or updated skill",
+    status_code=status.HTTP_201_CREATED,
     tags=["Skills"],
 )
 async def add_or_update_skill(
@@ -707,6 +751,7 @@ async def add_or_update_skill(
     "/competencies/{competency}",
     summary="Create or update a competency",
     response_description="New or updated competency",
+    status_code=status.HTTP_201_CREATED,
     tags=["Skills"],
 )
 async def add_or_update_competency(
@@ -728,6 +773,7 @@ async def add_or_update_competency(
     "/preferences",
     summary="Create or udpate a preference,",
     response_description="New or updated preference",
+    status_code=status.HTTP_201_CREATED,
     tags=["Preferences"],
 )
 async def add_or_update_preference(
@@ -749,8 +795,8 @@ async def add_or_update_preference(
 @app.delete(
     "/basic_info/{fact}",
     summary="Delete an existing fact",
-    tags=["Basic Info"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Basic Info"],
 )
 async def delete_fact(
     fact: str,
@@ -775,8 +821,8 @@ async def delete_fact(
 @app.delete(
     "/education/{index}",
     summary="Delete an existing education history item",
-    tags=["Education"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Education"],
 )
 async def delete_education_item(
     index: int,
@@ -801,8 +847,8 @@ async def delete_education_item(
 @app.delete(
     "/experience/{index}",
     summary="Delete an existing job history item",
-    tags=["Experience"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Experience"],
 )
 async def delete_experience_item(
     index: int,
@@ -827,8 +873,8 @@ async def delete_experience_item(
 @app.delete(
     "/experience/detail/{index}",
     summary="Delete a job detail",
-    tags=["Experience"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Experience"],
 )
 async def delete_experience_detail_item(
     index: int,
@@ -853,8 +899,8 @@ async def delete_experience_detail_item(
 @app.delete(
     "/experience/highlight/{index}",
     summary="Delete a job highlight",
-    tags=["Experience"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Experience"],
 )
 async def delete_experience_highlight_item(
     index: int,
@@ -879,8 +925,8 @@ async def delete_experience_highlight_item(
 @app.delete(
     "/certifications/{certification}",
     summary="Delete an existing certification",
-    tags=["Certifications"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Certifications"],
 )
 async def delete_certification(
     certification: str,
@@ -905,8 +951,8 @@ async def delete_certification(
 @app.delete(
     "/side_projects/{project}",
     summary="Delete an existing side project",
-    tags=["Side Projects"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Side Projects"],
 )
 async def delete_side_project(
     project: str,
@@ -931,8 +977,8 @@ async def delete_side_project(
 @app.delete(
     "/interests/{interest}",
     summary="Delete an existing interest",
-    tags=["Interests"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Interests"],
 )
 async def delete_interest(
     interest: str,
@@ -957,8 +1003,8 @@ async def delete_interest(
 @app.delete(
     "/social_links/{platform}",
     summary="Delete an existing social link",
-    tags=["Social"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Social"],
 )
 async def delete_social_link(
     platform: str,
@@ -983,8 +1029,8 @@ async def delete_social_link(
 @app.delete(
     "/skills/{skill}",
     summary="Delete an existing skill",
-    tags=["Skills"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Skills"],
 )
 async def delete_skill(
     skill: str,
@@ -1009,8 +1055,8 @@ async def delete_skill(
 @app.delete(
     "/competencies/{competency}",
     summary="Delete an existing competency",
-    tags=["Skills"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Skills"],
 )
 async def delete_competency(
     competency: str,
@@ -1035,8 +1081,8 @@ async def delete_competency(
 @app.delete(
     "/preferences/{preference}",
     summary="Delete a prefeerence",
-    tags=["Preferences"],
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Preferences"],
 )
 async def delete_preference(
     preference: str,
