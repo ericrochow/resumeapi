@@ -6,14 +6,14 @@ name = "pypi"
 [packages]
 fastapi = {extras = ["all"], version = "*"}
 passlib = {extras = ["bcrypt"], version = "*"}
-peewee = "*"
+psycopg2-binary = "*"
 pydantic = {extras = ["dotenv", "email"], version = "*"}
 python-dotenv = "*"
 python-jose = {extras = ["cryptography"], version = "*"}
 python-multipart = "*"
 uvicorn = {extras = ["standard"], version = "*"}
-psycopg2-binary = "*"
 sqlmodel = "*"
+resumeapi = {editable = true, path = "."}
 
 [dev-packages]
 bandit = "*"
@@ -23,6 +23,8 @@ flake8-bandit = "*"
 install = "*"
 ipdb = "*"
 ipython = "*"
+mypy = "*"
+pydocstyle = {extras = ["toml"], version = "*"}
 
 [pipenv]
 allow_prereleases = true
