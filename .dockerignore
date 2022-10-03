@@ -1,0 +1,5 @@
+.deepsource.toml
+resume.db
+tests
+.vscode
+Pipenv*

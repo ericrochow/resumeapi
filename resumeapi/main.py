@@ -9,15 +9,15 @@ from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+from jose import JWTError, jwt  # noqa
 import uvicorn
 
 from controller import AuthController, ResumeController
 
-import schema
+import models
 
 load_dotenv()
-app = FastAPI(title="Resume API", version="0.1.0")
+app = FastAPI(title="Resume API", version="0.2.0")
 resume = ResumeController()
 auth_control = AuthController()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -28,12 +28,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     """
     Validate a JWT token and identifies the currently-authenticated user.
 
-    Args:
-        token: A string containing a full JWT token.
-    Returns:
-        A string containing the username authenticated user.
-    Raises:
-        HttpException: Could not validate credentials.
+    :param  token: A string containing a full JWT token.
+    :type token: str
+    :return: A string containing the username authenticated user.
+    :rtype: str
+    :raises HttpException: Could not validate credentials.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -56,17 +55,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 
 async def get_current_active_user(
-    current_user: schema.User = Depends(get_current_user),
+    current_user: models.User = Depends(get_current_user),
 ):
     """
     Determine whether the currently-authenticated user is disabled or active.
 
-    Args:
-        current_user:
-    Returns:
-        The same object passed in.
-    Raises:
-        HttpException: The currently-active user is disabled.
+    :param current_user: The user to check for disabled status
+    :type current_user: models.py.bak.User
+    :return: The same object passed in
+    :rtype: models.py.bak.User
+    :raises HttpException: The currently-active user is disabled.
     """
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
@@ -78,7 +76,7 @@ async def get_current_active_user(
     summary="Create an API token",
     description="Log into the API to generate a token",
     response_description="Token info",
-    response_model=schema.Token,
+    response_model=models.Token,
     tags=["Authentication"],
 )
 async def login_for_access_token(
@@ -87,12 +85,11 @@ async def login_for_access_token(
     """
     Authenticate a user with Basic Auth and passes back a Bearer token.
 
-    Args:
-        form_data: An OAuth2PasswordRequest object containing Basic Auth credentials
-    Returns:
-        A dict containing the access token and token_type of "bearer".
-    Raises:
-        HttpException: Incorrect username or password.
+    :param form_data: An OAuth2PasswordRequest object containing Basic Auth credentials
+    :type form_data: OAuth2PasswordRequestForm
+    :return: The access token and token_type of "bearer".
+    :rtype: dict
+    :raises HttpException: Incorrect username or password.
     """
     logger.debug("Attempting to log in as user %s", form_data.username)
     valid_user = auth_control.authenticate_user(form_data.username, form_data.password)
@@ -116,10 +113,10 @@ async def login_for_access_token(
     summary="List all users",
     description="List all users and whether the user is active",
     response_description="All users",
-    response_model=schema.Users,
+    response_model=models.Users,
     tags=["Users"],
 )
-async def get_all_users(current_user: schema.User = Depends(get_current_active_user)):
+async def get_all_users(current_user: models.User = Depends(get_current_active_user)):
     return resume.get_all_users()
 
 
@@ -128,10 +125,10 @@ async def get_all_users(current_user: schema.User = Depends(get_current_active_u
     summary="Current user info",
     description="Return info about the currently-authenticated user",
     response_description="User info",
-    response_model=schema.User,
+    response_model=models.User,
     tags=["Users"],
 )
-async def read_users_me(current_user: schema.User = Depends(get_current_active_user)):
+async def read_users_me(current_user: models.User = Depends(get_current_active_user)):
     return {"username": current_user.username, "disabled": current_user.disabled}
 
 
@@ -140,10 +137,10 @@ async def read_users_me(current_user: schema.User = Depends(get_current_active_u
     summary="",
     description="",
     response_description="",
-    response_model=schema.FullResume,
+    response_model=models.FullResume,
     tags=["Full Resume"],
 )
-async def get_full_resume() -> dict:
+async def get_full_resume() -> models.FullResume:
     """"""
     return resume.get_full_resume()
 
@@ -156,7 +153,7 @@ async def get_resume_pdf() -> FileResponse:
     try:
         return FileResponse(pdf)
     except RuntimeError:
-        return JSONResponse(
+        return JSONResponse(  # noqa
             status_code=404, content={"message": "No file at this location"}
         )
 
@@ -173,10 +170,10 @@ async def get_resume_html() -> RedirectResponse:
     summary="Basic info about me",
     description="Gather basic details about me, such as contact info, pronouns, etc",
     response_description="About Me",
-    response_model=schema.BasicInfo,
+    response_model=models.BasicInfos,
     tags=["Basic Info"],
 )
-async def get_basic_info() -> Dict[str, List[Dict[str, str]]]:
+async def get_basic_info() -> models.BasicInfos:
     return resume.get_basic_info()
 
 
@@ -185,13 +182,14 @@ async def get_basic_info() -> Dict[str, List[Dict[str, str]]]:
     summary="Single basic info fact",
     description="Find a single basic info fact about me based on the specified path",
     response_description="Basic info fact",
+    response_model=models.BasicInfo,
     tags=["Basic Info"],
 )
-async def get_basic_info_fact(fact: str) -> Dict[str, str]:
+async def get_basic_info_fact(fact: str) -> models.BasicInfo:
     try:
         return resume.get_basic_info_item(fact)
     except KeyError:
-        return JSONResponse(
+        return JSONResponse(  # noqa
             status_code=404, content={"message": f"No basic info item {fact}"}
         )
 
@@ -201,11 +199,11 @@ async def get_basic_info_fact(fact: str) -> Dict[str, str]:
     summary="Education history",
     description="Find my full education history",
     response_description="Education history",
-    response_model=schema.EducationHistory,
+    response_model=List[models.Education],
     tags=["Education"],
 )
-async def get_education() -> Dict[str, List[Dict[str, str]]]:
-    return {"history": resume.get_all_education_history()}
+async def get_education() -> List[models.Education]:
+    return resume.get_all_education_history()
 
 
 @app.get(
@@ -213,15 +211,15 @@ async def get_education() -> Dict[str, List[Dict[str, str]]]:
     summary="Single education history item",
     description="Find a single education history item specified in the path",
     response_description="Education history item",
-    response_model=schema.Education,
-    responses={404: {"model": schema.Education}},
+    response_model=models.Education,
+    responses={404: {"model": models.Education}},
     tags=["Education"],
 )
-async def get_education_item(index: int) -> Dict[str, str]:
+async def get_education_item(index: int) -> models.Education:
     try:
         return resume.get_education_item(index)
     except IndexError:
-        return JSONResponse(
+        return JSONResponse(  # noqa
             status_code=404, content={"message": f"No education item {index}"}
         )
 
@@ -231,11 +229,10 @@ async def get_education_item(index: int) -> Dict[str, str]:
     summary="Full job history",
     description="Find my full post-undergrad job history",
     response_description="Job history",
-    # response_model=schema.JobHistory,
-    response_model=List[schema.Job],
+    response_model=List[models.Job],
     tags=["Experience"],
 )
-async def get_experience() -> dict:
+async def get_experience() -> List[models.Job]:
     return resume.get_experience()
 
 
@@ -244,15 +241,15 @@ async def get_experience() -> dict:
     summary="Job history item",
     description="Find a single job history item specified in the path",
     response_description="Job history item",
-    response_model=schema.Job,
-    responses={404: {"model": schema.Job}},
+    response_model=models.Job,
+    responses={404: {"model": models.Job}},
     tags=["Experience"],
 )
-async def get_experience_item(index: int) -> dict:
+async def get_experience_item(index: int) -> models.Job:
     try:
         return resume.get_experience_item(index)
     except IndexError:
-        return JSONResponse(
+        return JSONResponse(  # noqa
             status_code=404, content={"message": f"No experience item {index}"}
         )
 
@@ -264,15 +261,15 @@ async def get_experience_item(index: int) -> dict:
         "Find my full list of current, previous, and in-progress certifications"
     ),
     response_description="Certifications",
-    response_model=schema.CertificationHistory,
-    # response_model=List[schema.Certification],
+    response_model=List[models.Certification],
+    # response_model=List[models.Certification],
     tags=["Certifications"],
 )
 async def get_certification_history(
     valid_only: Optional[bool] = False,
-) -> Dict[str, List[Dict[str, str]]]:
+) -> List[models.Certification]:
     certs = resume.get_certifications(valid_only=valid_only)
-    return {"certification_history": certs}
+    return certs
 
 
 @app.get(
@@ -283,15 +280,15 @@ async def get_certification_history(
         " sensitive)"
     ),
     response_description="Certification",
-    response_model=schema.Certification,
-    responses={404: {"model": schema.Certification}},
+    response_model=models.Certification,
+    responses={404: {"model": models.Certification}},
     tags=["Certifications"],
 )
-async def get_certification_item(certification: str) -> dict:
+async def get_certification_item(certification: str) -> models.Certification:
     try:
         return resume.get_certification_by_name(certification)
     except KeyError:
-        return JSONResponse(
+        return JSONResponse(  # noqa
             status_code=404,
             content={"message": f"No certification item {certification}"},
         )
@@ -302,11 +299,11 @@ async def get_certification_item(certification: str) -> dict:
     summary="Side projects",
     description="Find a list of my highlighted side projects",
     response_description="Side projects",
-    response_model=schema.SideProjects,
+    response_model=List[models.SideProject],
     tags=["Side Projects"],
 )
-async def get_side_projects() -> dict:
-    return {"projects": resume.get_side_projects()}
+async def get_side_projects() -> List[models.SideProject]:
+    return resume.get_side_projects()
 
 
 @app.get(
@@ -316,11 +313,11 @@ async def get_side_projects() -> dict:
     response_description="Side project",
     tags=["Side Projects"],
 )
-async def get_side_project(project: str) -> Dict[str, str]:
+async def get_side_project(project: str) -> models.SideProject:
     try:
         return resume.get_side_project(project)
     except KeyError:
-        return JSONResponse(
+        return JSONResponse(  # noqa
             status_code=404, content={"message": f"No side project {project}"}
         )
 
@@ -330,10 +327,10 @@ async def get_side_project(project: str) -> Dict[str, str]:
     summary="Interests",
     description="Find all personal and technical/professional interests",
     response_description="Interests",
-    response_model=schema.Interests,
+    response_model=models.InterestsResponse,
     tags=["Interests"],
 )
-async def get_all_interests() -> schema.Interests:
+async def get_all_interests() -> models.InterestsResponse:
     return resume.get_all_interests()
 
 
@@ -342,13 +339,13 @@ async def get_all_interests() -> schema.Interests:
     summary="Interests for the requested category",
     description="Find all interests for the requested categories",
     response_description="Interests",
-    response_model=schema.Interests,
+    response_model=List[models.Interest],
     response_model_exclude_none=True,
     tags=["Interests"],
 )
 async def get_interests_by_category(
-    category: schema.InterestTypes,
-) -> schema.Interests:
+    category: models.InterestTypes,
+) -> List[models.Interest]:
     return resume.get_interests_by_category(category)
 
 
@@ -357,10 +354,10 @@ async def get_interests_by_category(
     summary="Social links",
     description="Find a list of links to me on the web",
     response_description="Social links",
-    response_model=schema.SocialLinks,
+    response_model=List[models.SocialLink],
     tags=["Social"],
 )
-async def get_social_links() -> Dict[str, str]:
+async def get_social_links() -> List[models.SocialLink]:
     return resume.get_social_links()
 
 
@@ -371,11 +368,11 @@ async def get_social_links() -> Dict[str, str]:
     response_description="Social link",
     tags=["Social"],
 )
-async def get_social_link_by_key(platform=schema.SocialLinkEnum) -> Dict[str, str]:
+async def get_social_link_by_key(platform=models.SocialLinkEnum) -> models.SocialLink:
     try:
         return resume.get_social_link(platform)
     except KeyError:
-        return JSONResponse(
+        return JSONResponse(  # noqa
             status_code=404, content={"message": f"No link stored for {platform}"}
         )
 
@@ -385,10 +382,10 @@ async def get_social_link_by_key(platform=schema.SocialLinkEnum) -> Dict[str, st
     summary="Skills",
     description="Find a (non-comprehensive) list of skills and info about them",
     response_description="Skills",
-    response_model=schema.Skills,
+    response_model=List[models.Skill],
     tags=["Skills"],
 )
-async def get_skills() -> Dict[str, List[str]]:
+async def get_skills() -> List[models.Skill]:
     return resume.get_skills()
 
 
@@ -397,14 +394,14 @@ async def get_skills() -> Dict[str, List[str]]:
     summary="Skill",
     description="Find the skill specified in the path",
     response_description="Skill",
-    response_model=schema.Skill,
+    response_model=models.Skill,
     tags=["Skills"],
 )
-async def get_skill(skill: str) -> dict:
+async def get_skill(skill: str) -> models.Skill:
     try:
         return resume.get_skill(skill)
     except KeyError:
-        return JSONResponse(
+        return JSONResponse(  # noqa
             status_code=404,
             content={"message": f"The requested skill {skill} does not exist (yet!)"},
         )
@@ -415,10 +412,10 @@ async def get_skill(skill: str) -> dict:
     summary="Competencies",
     description="Find a list of general technical and non-technical skills",
     response_description="Competencies",
-    response_model=schema.Competencies,
+    response_model=List[models.Competency],
     tags=["Skills"],
 )
-async def get_competencies() -> Dict[str, List[str]]:
+async def get_competencies() -> List[models.Competency]:
     return resume.get_competencies()
 
 
@@ -427,16 +424,14 @@ async def get_competencies() -> Dict[str, List[str]]:
     "/basic_info",
     summary="Create or update an existing fact",
     description="",
-    response_description="ID of the new or updated fact",
+    response_description="The body of the new or updated fact",
     tags=["Basic Info"],
 )
 async def add_or_update_fact(
-    basic_fact: schema.BasicInfoItem = Body(...),
-    current_user: schema.User = Depends(get_current_active_user),
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=200, content={"id": resume.upsert_basic_info_item(basic_fact)}
-    )
+    basic_fact: models.BasicInfo = Body(...),
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.BasicInfo:
+    return resume.upsert_basic_info_item(basic_fact)
 
 
 @app.put(
@@ -447,12 +442,10 @@ async def add_or_update_fact(
     tags=["Education"],
 )
 async def add_or_update_education(
-    education_item: schema.Education = Body(...),
-    current_user: schema.User = Depends(get_current_active_user),
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=200, content={"id": resume.upsert_education_item(education_item)}
-    )
+    education_item: models.Education = Body(...),
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.Education:
+    return resume.upsert_education_item(education_item)
 
 
 @app.put(
@@ -463,12 +456,10 @@ async def add_or_update_education(
     tags=["Experience"],
 )
 async def add_or_update_experience(
-    education_item: schema.Job = Body(...),
-    current_user: schema.User = Depends(get_current_active_user),
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=200, content={"id": resume.upsert_education_item(education_item)}
-    )
+    experience_item: models.Job = Body(...),
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.Job:
+    return resume.upsert_experience_item(experience_item)
 
 
 @app.put(
@@ -479,12 +470,10 @@ async def add_or_update_experience(
     tags=["Certifications"],
 )
 async def add_or_update_certification(
-    certification: schema.Certification = Body(...),
-    current_user: schema.User = Depends(get_current_active_user),
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=200, content={"id": resume.upsert_education_item(certification)}
-    )
+    certification: models.Certification = Body(...),
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.Certification:
+    return resume.upsert_certification(certification)
 
 
 @app.put(
@@ -495,12 +484,10 @@ async def add_or_update_certification(
     tags=["Side Projects"],
 )
 async def add_or_update_side_project(
-    side_project: schema.SideProject = Body(...),
-    current_user: schema.User = Depends(get_current_active_user),
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=200, content={"id": resume.upsert_side_project(side_project)}
-    )
+    side_project: models.SideProject = Body(...),
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.SideProject:
+    return resume.upsert_side_project(side_project)
 
 
 @app.put(
@@ -511,14 +498,11 @@ async def add_or_update_side_project(
     tags=["Interests"],
 )
 async def add_or_update_interest(
-    category: schema.InterestTypes,
-    interest: schema.Interest = Body(...),
-    current_user: schema.User = Depends(get_current_active_user),
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=200,
-        content={"id": resume.upsert_interest(category, interest.interest)},
-    )
+    category: models.InterestTypes,
+    interest: models.Interest = Body(...),
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.Interest:
+    return resume.upsert_interest(category, interest.interest)
 
 
 @app.put(
@@ -529,12 +513,10 @@ async def add_or_update_interest(
     tags=["Social"],
 )
 async def add_or_create_social_link(
-    social_link: schema.SocialLink,
-    current_user: schema.User = Depends(get_current_active_user),
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=200, content={"id": resume.upsert_social_link(social_link)}
-    )
+    social_link: models.SocialLink,
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.SocialLink:
+    return resume.upsert_social_link(social_link)
 
 
 @app.put(
@@ -545,26 +527,25 @@ async def add_or_create_social_link(
     tags=["Skills"],
 )
 async def add_or_update_skill(
-    skill: schema.Skill = Body(...),
-    current_user: schema.User = Depends(get_current_active_user),
-) -> JSONResponse:
-    return JSONResponse(status_code=200, content={"id": resume.upsert_skill(skill)})
+    skill: models.Skill = Body(...),
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.Skill:
+    return resume.upsert_skill(skill)
 
 
 @app.put(
-    "/copetencies",
-    summary="Create or update a competencies",
+    "/competencies/{competency}",
+    summary="Create or update a competency",
     description="",
     response_description="ID of the new or updated competency",
     tags=["Skills"],
 )
 async def add_or_update_competency(
-    competency: schema.Competencies = Body(...),
-    current_user: schema.User = Depends(get_current_active_user),
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=200, content={"id": resume.upsert_competency(competency)}
-    )
+    # competency: models.Competencies = Body(...),
+    competency: str,
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.Competency:
+    return resume.upsert_competency(competency)
 
 
 # DELETE methods for delete operations
@@ -575,7 +556,7 @@ async def add_or_update_competency(
     status_code=204,
 )
 async def delete_fact(
-    fact: str, current_user: schema.User = Depends(get_current_active_user)
+    fact: str, current_user: models.User = Depends(get_current_active_user)
 ):
     try:
         resume.delete_basic_info_item(fact)
@@ -592,7 +573,7 @@ async def delete_fact(
     status_code=204,
 )
 async def delete_education_item(
-    index: int, current_user: schema.User = Depends(get_current_active_user)
+    index: int, current_user: models.User = Depends(get_current_active_user)
 ):
     try:
         resume.delete_education_item(index)
@@ -609,7 +590,7 @@ async def delete_education_item(
     status_code=204,
 )
 async def delete_experience_item(
-    index: int, current_user: schema.User = Depends(get_current_active_user)
+    index: int, current_user: models.User = Depends(get_current_active_user)
 ):
     try:
         resume.delete_experience_item(index)
@@ -626,7 +607,7 @@ async def delete_experience_item(
     status_code=204,
 )
 async def delete_certification(
-    certification: str, current_user: schema.User = Depends(get_current_active_user)
+    certification: str, current_user: models.User = Depends(get_current_active_user)
 ):
     try:
         resume.delete_certification(certification)
@@ -643,7 +624,7 @@ async def delete_certification(
     status_code=204,
 )
 async def delete_side_project(
-    project: str, current_user: schema.User = Depends(get_current_active_user)
+    project: str, current_user: models.User = Depends(get_current_active_user)
 ):
     try:
         resume.delete_side_project(project)
@@ -660,7 +641,7 @@ async def delete_side_project(
     status_code=204,
 )
 async def delete_interest(
-    interest: str, current_user: schema.User = Depends(get_current_active_user)
+    interest: str, current_user: models.User = Depends(get_current_active_user)
 ):
     try:
         resume.delete_interest(interest)
@@ -677,7 +658,7 @@ async def delete_interest(
     status_code=204,
 )
 async def delete_social_link(
-    platform: str, current_user: schema.User = Depends(get_current_active_user)
+    platform: str, current_user: models.User = Depends(get_current_active_user)
 ):
     try:
         resume.delete_social_link(platform)
@@ -694,7 +675,7 @@ async def delete_social_link(
     status_code=204,
 )
 async def delete_skill(
-    skill: str, current_user: schema.User = Depends(get_current_active_user)
+    skill: str, current_user: models.User = Depends(get_current_active_user)
 ):
     try:
         resume.delete_skill(skill)
@@ -711,7 +692,7 @@ async def delete_skill(
     status_code=204,
 )
 async def delete_competency(
-    competency: str, current_user: schema.User = Depends(get_current_active_user)
+    competency: str, current_user: models.User = Depends(get_current_active_user)
 ):
     try:
         resume.delete_competency(competency)
@@ -720,6 +701,7 @@ async def delete_competency(
             status_code=404, content={"message": "No such competency exists"}
         )
 
+# TODO: Add methods for preferences
 
 if __name__ == "__main__":
     host = os.getenv("API_HOST", "127.0.0.1")

@@ -1,9 +1,13 @@
+# Backup files
+*bak
+
 # Actual DB
 resume.db
 
 # Editor files
 *.swp
 .vscode/
+.idea/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -5,6 +5,7 @@
 #    pipenv lock --requirements
 #
 
+
 -i https://pypi.org/simple/
 aiofiles==0.8.0
 aniso8601==9.0.1
@@ -27,19 +28,19 @@ graphql-core==3.2.1; python_version >= '3.6' and python_version < '4'
 graphql-relay==3.2.0; python_version >= '3.6' and python_version < '4'
 greenlet==2.0.0a2; python_version >= '3' and platform_machine == 'aarch64' or (platform_machine == 'ppc64le' or (platform_machine == 'x86_64' or (platform_machine == 'amd64' or (platform_machine == 'AMD64' or (platform_machine == 'win32' or platform_machine == 'WIN32')))))
 h11==0.13.0; python_version >= '3.6'
-httptools==0.3.0
+httptools==0.2.0
 idna==3.3; python_version >= '3.5'
 itsdangerous==2.1.2
-jinja2==3.1.2
+jinja2==3.1.0
 markupsafe==2.1.1; python_version >= '3.7'
-orjson==3.7.6
+orjson==3.6.7
 passlib[bcrypt]==1.7.4
-peewee==3.14.9
+peewee==3.14.10
 psycopg2-binary==2.9.3
 pyasn1==0.4.8
 pycparser==2.21
 pydantic[dotenv,email]==1.9.0
-python-dotenv==0.19.2
+python-dotenv==0.20.0
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.5
 pyyaml==6.0
