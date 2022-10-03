@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
+"""Provides API methods served by FastAPI."""
+# pylint: disable=too-many-lines
 
 from datetime import timedelta
 import os
 import logging
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, status
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt  # noqa
 import uvicorn
 
-from controller import AuthController, ResumeController
-
-import models
+from resumeapi import __version__
+from resumeapi.controller import AuthController, ResumeController
+from resumeapi import models
 
 load_dotenv()
-app = FastAPI(title="Resume API", version="0.2.0")
+app = FastAPI(title="Resume API", version=__version__.__version__)
 resume = ResumeController()
 auth_control = AuthController()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -46,8 +48,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         username: str = payload.get("sub")
         if not username:
             raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+    except JWTError as exc:
+        raise credentials_exception from exc
     user = auth_control.get_user(username)
     if not user:
         raise credentials_exception
@@ -67,7 +69,9 @@ async def get_current_active_user(
     :raises HttpException: The currently-active user is disabled.
     """
     if current_user.disabled:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
+        )
     return current_user
 
 
@@ -81,7 +85,7 @@ async def get_current_active_user(
 )
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
-) -> Dict[str, str]:
+) -> models.Token:
     """
     Authenticate a user with Basic Auth and passes back a Bearer token.
 
@@ -95,179 +99,203 @@ async def login_for_access_token(
     valid_user = auth_control.authenticate_user(form_data.username, form_data.password)
     if not valid_user:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect username or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    max_token_expiration = int(os.getenv("ACCESS_TOKEN_EXPIRES_MINUTES"))
+    max_token_expiration = int(os.getenv("ACCESS_TOKEN_EXPIRES_MINUTES", default="5"))
     access_token_expires = timedelta(minutes=max_token_expiration)
     access_token = auth_control.create_access_token(
         data={"sub": valid_user.username}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer"}  # type: ignore
 
 
 # GET methods for read-only operations
 @app.get(
     "/users",
     summary="List all users",
-    description="List all users and whether the user is active",
     response_description="All users",
     response_model=models.Users,
     tags=["Users"],
 )
-async def get_all_users(current_user: models.User = Depends(get_current_active_user)):
+async def get_all_users(
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
+):
+    """List all users and wheter the user is active."""
     return resume.get_all_users()
 
 
 @app.get(
     "/users/me",
     summary="Current user info",
-    description="Return info about the currently-authenticated user",
     response_description="User info",
     response_model=models.User,
     tags=["Users"],
 )
-async def read_users_me(current_user: models.User = Depends(get_current_active_user)):
+async def read_users_me(
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Return info about the currently-authenticated user."""
     return {"username": current_user.username, "disabled": current_user.disabled}
 
 
 @app.get(
     "/",
-    summary="",
-    description="",
-    response_description="",
+    summary="Full resume in JSON format",
+    response_description="Full resume in JSON format",
     response_model=models.FullResume,
     tags=["Full Resume"],
 )
 async def get_full_resume() -> models.FullResume:
-    """"""
+    """Request a JSON representation of my full resume."""
     return resume.get_full_resume()
 
 
-@app.get(
-    "/pdf", summary="", description="", response_description="", tags=["Full Resume"]
-)
+@app.get("/pdf", summary="Request PDF of my full resume", tags=["Full Resume"])
 async def get_resume_pdf() -> FileResponse:
+    """Request PDF of my full resume."""
     pdf = "ericrochowresume.pdf"
     try:
         return FileResponse(pdf)
     except RuntimeError:
-        return JSONResponse(  # noqa
-            status_code=404, content={"message": "No file at this location"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No file at this location",
         )
 
 
 @app.get(
-    "/html", summary="", description="", response_description="", tags=["Full Resume"]
+    "/html",
+    summary="Request HTML rendering of my resume",
+    response_description="HTML rendering of resume",
+    tags=["Full Resume"],
 )
 async def get_resume_html() -> RedirectResponse:
+    """Request HTML rendering of my resume."""
     return RedirectResponse("https://resume.ericroc.how")
 
 
 @app.get(
     "/basic_info",
-    summary="Basic info about me",
-    description="Gather basic details about me, such as contact info, pronouns, etc",
+    summary="Request basic info about me",
     response_description="About Me",
     response_model=models.BasicInfos,
     tags=["Basic Info"],
 )
 async def get_basic_info() -> models.BasicInfos:
+    """Gather basic details about me, such as contact info, pronouns, etc."""
     return resume.get_basic_info()
 
 
 @app.get(
     "/basic_info/{fact}",
-    summary="Single basic info fact",
-    description="Find a single basic info fact about me based on the specified path",
+    summary="Request a single basic info fact",
     response_description="Basic info fact",
     response_model=models.BasicInfo,
     tags=["Basic Info"],
 )
 async def get_basic_info_fact(fact: str) -> models.BasicInfo:
+    """Find a single basic fact about me based on the specified fact key."""
     try:
         return resume.get_basic_info_item(fact)
     except KeyError:
-        return JSONResponse(  # noqa
-            status_code=404, content={"message": f"No basic info item {fact}"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No basic info item {fact}",
         )
 
 
 @app.get(
     "/education",
-    summary="Education history",
-    description="Find my full education history",
+    summary="Request my full education history",
     response_description="Education history",
     response_model=List[models.Education],
     tags=["Education"],
 )
 async def get_education() -> List[models.Education]:
+    """Find my full education history."""
     return resume.get_all_education_history()
 
 
 @app.get(
     "/education/{index}",
-    summary="Single education history item",
-    description="Find a single education history item specified in the path",
+    summary="Request a single education history item",
     response_description="Education history item",
     response_model=models.Education,
-    responses={404: {"model": models.Education}},
+    responses={status.HTTP_404_NOT_FOUND: {"model": models.Education}},
     tags=["Education"],
 )
 async def get_education_item(index: int) -> models.Education:
+    """
+    Request a single education history item based on its ID.
+
+    - **index**: ID of the education history item
+    """
     try:
         return resume.get_education_item(index)
     except IndexError:
-        return JSONResponse(  # noqa
-            status_code=404, content={"message": f"No education item {index}"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No education item {index}",
         )
 
 
 @app.get(
     "/experience",
-    summary="Full job history",
-    description="Find my full post-undergrad job history",
+    summary="Request full job history",
     response_description="Job history",
-    response_model=List[models.Job],
+    response_model=List[models.JobResponse],
     tags=["Experience"],
 )
-async def get_experience() -> List[models.Job]:
+async def get_experience() -> List[models.JobResponse]:
+    """Request my full post-graduate job history."""
     return resume.get_experience()
 
 
 @app.get(
     "/experience/{index}",
     summary="Job history item",
-    description="Find a single job history item specified in the path",
     response_description="Job history item",
-    response_model=models.Job,
-    responses={404: {"model": models.Job}},
+    response_model=models.JobResponse,
+    responses={status.HTTP_404_NOT_FOUND: {"model": models.JobResponse}},
     tags=["Experience"],
 )
-async def get_experience_item(index: int) -> models.Job:
+async def get_experience_item(index: int) -> models.JobResponse:
+    """
+    Find a single job history items specified by ID.
+
+    - **index**: The ID of the job whose info to return
+    """
     try:
-        return resume.get_experience_item(index)
+        results = resume.get_experience_item(index)
+        return results
+        # return resume.get_experience_item(index)
     except IndexError:
-        return JSONResponse(  # noqa
-            status_code=404, content={"message": f"No experience item {index}"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No experience item {index}",
         )
 
 
 @app.get(
     "/certifications",
     summary="Certification list",
-    description=(
-        "Find my full list of current, previous, and in-progress certifications"
-    ),
     response_description="Certifications",
     response_model=List[models.Certification],
-    # response_model=List[models.Certification],
     tags=["Certifications"],
 )
 async def get_certification_history(
     valid_only: Optional[bool] = False,
 ) -> List[models.Certification]:
+    """
+    Find my full list of current, previous, and in-progress certifications.
+
+    - **valid_only**: Only include current certifications excluding expired ones
+        (optional, defaults to False)
+    """
     certs = resume.get_certifications(valid_only=valid_only)
     return certs
 
@@ -275,69 +303,76 @@ async def get_certification_history(
 @app.get(
     "/certifications/{certification}",
     summary="Single certification",
-    description=(
-        "Find information about a single certification specified in the path (case"
-        " sensitive)"
-    ),
     response_description="Certification",
     response_model=models.Certification,
-    responses={404: {"model": models.Certification}},
+    responses={status.HTTP_404_NOT_FOUND: {"model": models.Certification}},
     tags=["Certifications"],
 )
-async def get_certification_item(certification: str) -> models.Certification:
+async def get_certification_item(
+    certification: str,
+) -> models.Certification:
+    """
+    Find information about a single certification specified in the path.
+
+    - **certification**: Case-sensitive certification name
+    """
     try:
         return resume.get_certification_by_name(certification)
     except KeyError:
-        return JSONResponse(  # noqa
-            status_code=404,
-            content={"message": f"No certification item {certification}"},
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No certification item {certification}",
         )
 
 
 @app.get(
     "/side_projects",
     summary="Side projects",
-    description="Find a list of my highlighted side projects",
     response_description="Side projects",
     response_model=List[models.SideProject],
     tags=["Side Projects"],
 )
 async def get_side_projects() -> List[models.SideProject]:
+    """Find a list of my highlighted side projects."""
     return resume.get_side_projects()
 
 
 @app.get(
     "/side_projects/{project}",
     summary="Single side project",
-    description="Find a single side side project specified in the path",
     response_description="Side project",
     tags=["Side Projects"],
 )
 async def get_side_project(project: str) -> models.SideProject:
+    """
+    Find a single side project specified by name.
+
+    - **project**: The name of the project whose info to return.
+    """
     try:
         return resume.get_side_project(project)
     except KeyError:
-        return JSONResponse(  # noqa
-            status_code=404, content={"message": f"No side project {project}"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No side project {project}",
         )
 
 
 @app.get(
     "/interests",
     summary="Interests",
-    description="Find all personal and technical/professional interests",
     response_description="Interests",
     response_model=models.InterestsResponse,
     tags=["Interests"],
 )
 async def get_all_interests() -> models.InterestsResponse:
+    """Find all personal and technical/professional interests."""
     return resume.get_all_interests()
 
 
 @app.get(
     "/interests/{category}",
     summary="Interests for the requested category",
-    description="Find all interests for the requested categories",
     response_description="Interests",
     response_model=List[models.Interest],
     response_model_exclude_none=True,
@@ -346,76 +381,93 @@ async def get_all_interests() -> models.InterestsResponse:
 async def get_interests_by_category(
     category: models.InterestTypes,
 ) -> List[models.Interest]:
+    """
+    Find all interests for the requested category.
+
+    - **category**: Either personal or professional
+    """
     return resume.get_interests_by_category(category)
 
 
 @app.get(
     "/social_links",
     summary="Social links",
-    description="Find a list of links to me on the web",
     response_description="Social links",
     response_model=List[models.SocialLink],
     tags=["Social"],
 )
 async def get_social_links() -> List[models.SocialLink]:
+    """Find a list of links to me on the web."""
     return resume.get_social_links()
 
 
 @app.get(
     "/social_links/{platform}",
     summary="Social link",
-    description="Find the social link specified in the path",
     response_description="Social link",
     tags=["Social"],
 )
-async def get_social_link_by_key(platform=models.SocialLinkEnum) -> models.SocialLink:
+async def get_social_link_by_key(
+    platform=models.SocialLinkEnum,
+) -> models.SocialLink:
+    """
+    Find the social link specified in the path.
+
+    - **platform**: Name of the social media platform whose link to return
+    """
     try:
         return resume.get_social_link(platform)
     except KeyError:
-        return JSONResponse(  # noqa
-            status_code=404, content={"message": f"No link stored for {platform}"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No link stored for {platform}",
         )
 
 
 @app.get(
     "/skills",
     summary="Skills",
-    description="Find a (non-comprehensive) list of skills and info about them",
     response_description="Skills",
     response_model=List[models.Skill],
     tags=["Skills"],
 )
 async def get_skills() -> List[models.Skill]:
+    """Find a (non-comprehensive) list of skills and info about them."""
     return resume.get_skills()
 
 
 @app.get(
     "/skills/{skill}",
     summary="Skill",
-    description="Find the skill specified in the path",
     response_description="Skill",
     response_model=models.Skill,
     tags=["Skills"],
 )
 async def get_skill(skill: str) -> models.Skill:
+    """
+    Find the skill specified in the path.
+
+    - **skill**: Name of the skill to look up
+    """
     try:
         return resume.get_skill(skill)
     except KeyError:
-        return JSONResponse(  # noqa
-            status_code=404,
-            content={"message": f"The requested skill {skill} does not exist (yet!)"},
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"The requested skill {skill} does not exist (yet!)",
         )
 
 
 @app.get(
     "/competencies",
     summary="Competencies",
-    description="Find a list of general technical and non-technical skills",
+    description="",
     response_description="Competencies",
     response_model=List[models.Competency],
     tags=["Skills"],
 )
 async def get_competencies() -> List[models.Competency]:
+    """Find a list of general technical and non-technical skills."""
     return resume.get_competencies()
 
 
@@ -423,14 +475,21 @@ async def get_competencies() -> List[models.Competency]:
 @app.put(
     "/basic_info",
     summary="Create or update an existing fact",
-    description="",
     response_description="The body of the new or updated fact",
     tags=["Basic Info"],
 )
 async def add_or_update_fact(
     basic_fact: models.BasicInfo = Body(...),
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ) -> models.BasicInfo:
+    """
+    Create or update an existing fact.
+
+    - **fact**: The name of the fact
+    - **value**: The value of the fact
+    """
     return resume.upsert_basic_info_item(basic_fact)
 
 
@@ -443,109 +502,247 @@ async def add_or_update_fact(
 )
 async def add_or_update_education(
     education_item: models.Education = Body(...),
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ) -> models.Education:
+    """
+    Create or update an education item.
+
+    - **id**: The internal ID of the education record (only used to update)
+    - **institution**: The school issuing the degree
+    - **degree**: The type or name of degree issued on completion of instruction
+    - **graduation_date**: The year graduated from the institution
+    - **gpa**: The grade point average on completion of the degree
+    """
     return resume.upsert_education_item(education_item)
 
 
 @app.put(
     "/experience",
     summary="Create or update an experience item",
-    description="",
     response_description="ID of the new or updated experience item",
     tags=["Experience"],
 )
 async def add_or_update_experience(
     experience_item: models.Job = Body(...),
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ) -> models.Job:
+    """
+    Create or update an experience item.
+
+    - **id**: The internal ID of the job (only used to update existing)
+    - **employer**: The name of the employer
+    - **employer_summary**: A brief description of the employer (industry, etc.)
+    - **location**: The primary work location
+    - **job_title**: The job title held
+    - **job_summary**: A brief description of the job
+    """
     return resume.upsert_experience_item(experience_item)
+
+
+@app.put(
+    "/experience/detail",
+    summary="Create or update a job detail",
+    response_description="New or udpated job detail",
+    response_model=models.JobDetail,
+    tags=["Experience"],
+)
+async def add_or_update_experience_detail(
+    experience_detail_item: models.JobDetail = Body(...),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
+) -> models.JobDetail:
+    """
+    Create or update a job detail.
+
+    - **id**: The internal ID of the job detail (only used to update existing)
+    - **detail**: A detail to include for the job specified by ID
+    - **job_id**: The internal ID of the job associated with this detail
+    """
+    return resume.upsert_job_detail(experience_detail_item)
+
+
+@app.put(
+    "/experience/highlight",
+    summary="Create or update a job highlight",
+    response_description="New or updated job highlight",
+    response_model=models.JobHighlight,
+    tags=["Experience"],
+)
+async def add_or_update_experience_highlight(
+    experience_highlight_item: models.JobHighlight = Body(...),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
+) -> models.JobHighlight:
+    """
+    Create or update a job highlight.
+
+    - **id**: The internal ID of the job highlight (only used to update existing)
+    - **highlight**: A highlight to include for the job specified by ID
+    - **job_id**: The internal ID of the job associated with this highlight
+    """
+    return resume.upsert_job_highlight(experience_highlight_item)
 
 
 @app.put(
     "/certifications",
     summary="Create or update a certification",
-    description="",
     response_description="ID of the new or updated certification",
+    response_model=models.Certification,
     tags=["Certifications"],
 )
 async def add_or_update_certification(
     certification: models.Certification = Body(...),
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ) -> models.Certification:
+    """
+    Create or update a certification.
+
+    - **cert**: The well-known name of the certification
+    - **full_name**: The full name of the certification
+    - **time**: The year range the certification has been valid
+    - **valid**: Whether the certification is currently valid (unexpired)
+    - **progress**: How much progress has been made toward attaining the certification
+    """
     return resume.upsert_certification(certification)
 
 
 @app.put(
     "/side_projects",
     summary="Create or update a side project",
-    description="",
     response_description="ID of the new or updated side project",
+    response_model=models.SideProject,
     tags=["Side Projects"],
 )
 async def add_or_update_side_project(
     side_project: models.SideProject = Body(...),
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ) -> models.SideProject:
+    """
+    Create or update a side project.
+
+    - **title**: The title of the project
+    - **tagline**: A one-sentance description of the project
+    - **link**: A URL link to the project to get more details
+    """
     return resume.upsert_side_project(side_project)
 
 
 @app.put(
     "/interests/{category}",
     summary="Create or update an interest",
-    description="",
     response_description="ID of the new or updated interest",
+    response_model=models.Interest,
     tags=["Interests"],
 )
 async def add_or_update_interest(
     category: models.InterestTypes,
     interest: models.Interest = Body(...),
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ) -> models.Interest:
+    """
+    Create or update an interest.
+
+    - **category**: personal or professional
+    - **interest**: Interest to add to the list
+    """
     return resume.upsert_interest(category, interest.interest)
 
 
 @app.put(
     "/social_links",
     summary="Create or update a social link",
-    description="",
-    response_description="",
+    response_description="The new or udpated social link",
+    response_model=models.SocialLink,
     tags=["Social"],
 )
 async def add_or_create_social_link(
     social_link: models.SocialLink,
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ) -> models.SocialLink:
+    """
+    Create or update a social link.
+
+    - **platform**: The social platform to configure
+    - **link**: A URL to the social profile associated with the platform
+    """
     return resume.upsert_social_link(social_link)
 
 
 @app.put(
     "/skills",
     summary="Create or update a skill",
-    description="",
-    response_description="ID of the new or updated skill",
+    response_description="The new or updated skill",
     tags=["Skills"],
 )
 async def add_or_update_skill(
     skill: models.Skill = Body(...),
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ) -> models.Skill:
+    """
+    Create or update a skill.
+
+    - **skill**: The name of the skill to configure
+    - **level**: Skill level out of 100
+    """
     return resume.upsert_skill(skill)
 
 
 @app.put(
     "/competencies/{competency}",
     summary="Create or update a competency",
-    description="",
-    response_description="ID of the new or updated competency",
+    response_description="New or updated competency",
     tags=["Skills"],
 )
 async def add_or_update_competency(
     # competency: models.Competencies = Body(...),
     competency: str,
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ) -> models.Competency:
+    """
+    Create or update a competency.
+
+    - **competency**: The competency to add to the list
+    """
     return resume.upsert_competency(competency)
+
+
+@app.put(
+    "/preferences",
+    summary="Create or udpate a preference,",
+    response_description="New or updated preference",
+    tags=["Preferences"],
+)
+async def add_or_update_preference(
+    preference: models.Preference = Body(...),
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
+) -> models.Preference:
+    """
+    Create or update a preference.
+
+    - **preference**: The type of preference
+    - **value**: The value of the preference
+    """
+    return resume.upsert_preference(preference)
 
 
 # DELETE methods for delete operations
@@ -553,16 +750,25 @@ async def add_or_update_competency(
     "/basic_info/{fact}",
     summary="Delete an existing fact",
     tags=["Basic Info"],
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_fact(
-    fact: str, current_user: models.User = Depends(get_current_active_user)
+    fact: str,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ):
+    """
+    Delete an existing fact.
+
+    - **fact**: The key of the fact to remove (e.g. name)
+    """
     try:
         resume.delete_basic_info_item(fact)
     except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": f"No such fact '{fact}'"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No such fact '{fact}'",
         )
 
 
@@ -570,16 +776,25 @@ async def delete_fact(
     "/education/{index}",
     summary="Delete an existing education history item",
     tags=["Education"],
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_education_item(
-    index: int, current_user: models.User = Depends(get_current_active_user)
+    index: int,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ):
+    """
+    Delete an existing education history item.
+
+    - **id**: The internal ID of the education history item to delete
+    """
     try:
         resume.delete_education_item(index)
     except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": "No such eduction item exists"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such eduction item exists",
         )
 
 
@@ -587,16 +802,77 @@ async def delete_education_item(
     "/experience/{index}",
     summary="Delete an existing job history item",
     tags=["Experience"],
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_experience_item(
-    index: int, current_user: models.User = Depends(get_current_active_user)
+    index: int,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ):
+    """
+    Delete an existing job history item.
+
+    - **index**: The internal ID of the job to delete
+    """
     try:
         resume.delete_experience_item(index)
     except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": "No such job history item exists"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such job history item exists",
+        )
+
+
+@app.delete(
+    "/experience/detail/{index}",
+    summary="Delete a job detail",
+    tags=["Experience"],
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_experience_detail_item(
+    index: int,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
+):
+    """
+    Delete a job detail.
+
+    - **index**: The internal ID of the job detail to delete
+    """
+    try:
+        resume.delete_job_detail(index)
+    except KeyError:
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such job detail item exists",
+        )
+
+
+@app.delete(
+    "/experience/highlight/{index}",
+    summary="Delete a job highlight",
+    tags=["Experience"],
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_experience_highlight_item(
+    index: int,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
+):
+    """
+    Delete a job highlight.
+
+    - **index**: The internal ID of the job highlight to delete
+    """
+    try:
+        resume.delete_job_highlight(index)
+    except KeyError:
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such job highlight item exists",
         )
 
 
@@ -604,16 +880,25 @@ async def delete_experience_item(
     "/certifications/{certification}",
     summary="Delete an existing certification",
     tags=["Certifications"],
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_certification(
-    certification: str, current_user: models.User = Depends(get_current_active_user)
+    certification: str,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ):
+    """
+    Delete an existing certification.
+
+    - **certification**: The case-sensitive, well-known name of the certification
+    """
     try:
         resume.delete_certification(certification)
     except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": "No such certification exists"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such certification exists",
         )
 
 
@@ -621,16 +906,25 @@ async def delete_certification(
     "/side_projects/{project}",
     summary="Delete an existing side project",
     tags=["Side Projects"],
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_side_project(
-    project: str, current_user: models.User = Depends(get_current_active_user)
+    project: str,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ):
+    """
+    Delete an existing side project.
+
+    - **project**: The name of the project to delete
+    """
     try:
         resume.delete_side_project(project)
     except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": "No such side project exists"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such side project exists",
         )
 
 
@@ -638,16 +932,25 @@ async def delete_side_project(
     "/interests/{interest}",
     summary="Delete an existing interest",
     tags=["Interests"],
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_interest(
-    interest: str, current_user: models.User = Depends(get_current_active_user)
+    interest: str,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ):
+    """
+    Delete an existing interest.
+
+    - **interest**: The interest to remove from the list
+    """
     try:
         resume.delete_interest(interest)
     except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": "No such interest exists"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such interest exists",
         )
 
 
@@ -655,16 +958,25 @@ async def delete_interest(
     "/social_links/{platform}",
     summary="Delete an existing social link",
     tags=["Social"],
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_social_link(
-    platform: str, current_user: models.User = Depends(get_current_active_user)
+    platform: str,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ):
+    """
+    Delete an existing social link by platform.
+
+    - **platform**: The name of the platform whose link to delete
+    """
     try:
         resume.delete_social_link(platform)
     except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": "No such social link exists"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such social link exists",
         )
 
 
@@ -672,16 +984,25 @@ async def delete_social_link(
     "/skills/{skill}",
     summary="Delete an existing skill",
     tags=["Skills"],
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_skill(
-    skill: str, current_user: models.User = Depends(get_current_active_user)
+    skill: str,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ):
+    """
+    Delete an existing skill.
+
+    - **skill**: The skill to delete
+    """
     try:
         resume.delete_skill(skill)
     except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": "No such skill exists"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such skill exists",
         )
 
 
@@ -689,29 +1010,63 @@ async def delete_skill(
     "/competencies/{competency}",
     summary="Delete an existing competency",
     tags=["Skills"],
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_competency(
-    competency: str, current_user: models.User = Depends(get_current_active_user)
+    competency: str,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
 ):
+    """
+    Delete an existing competency.
+
+    - **competency**: The competency to delete
+    """
     try:
         resume.delete_competency(competency)
     except KeyError:
-        return JSONResponse(
-            status_code=404, content={"message": "No such competency exists"}
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such competency exists",
         )
 
-# TODO: Add methods for preferences
+
+@app.delete(
+    "/preferences/{preference}",
+    summary="Delete a prefeerence",
+    tags=["Preferences"],
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_preference(
+    preference: str,
+    current_user: models.User = Depends(  # pylint: disable=unused-argument
+        get_current_active_user
+    ),
+):
+    """
+    Delete an existing preference.
+
+    - **preference**: The preference to delete.
+    """
+    try:
+        resume.delete_preference(preference)
+    except KeyError:
+        raise HTTPException(  # pylint: disable=raise-missing-from
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such preference exists",
+        )
+
 
 if __name__ == "__main__":
     host = os.getenv("API_HOST", "127.0.0.1")
     port = os.getenv("API_PORT", "8000")
     log_level = os.getenv("API_LOG_LEVEL", "error")
-    reload_on_change = os.getenv("API_RELOAD_ON_CHANGE")
+    reload_on_change = os.getenv("API_RELOAD_ON_CHANGE", default="False").title()
     uvicorn.run(
         "main:app",
         host=host,
         port=int(port),
         log_level=log_level,
-        reload=(reload_on_change.title() == "True"),
+        reload=(reload_on_change == "True"),
     )
