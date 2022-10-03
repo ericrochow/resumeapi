@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Entrypoint for running as a container."""
 
 import os
 
@@ -20,7 +21,7 @@ if __name__ == "__main__":
     except IntegrityError:
         print("Admin user already exists")
     host = os.getenv("API_HOST", default="127.0.0.1")
-    port = os.getenv("API_PORT", default=8000)
+    port = os.getenv("API_PORT", default="8000")
     log_level = os.getenv("API_LOG_LEVEL", default="error")
     reload_on_change = (
         os.getenv("API_RELOAD_ON_CHANGE", default="False").title() == "True"
@@ -29,6 +30,7 @@ if __name__ == "__main__":
         "main:app",
         host=host,
         port=int(port),
+        proxy_headers=True,
         log_level=log_level,
         reload=reload_on_change,
     )

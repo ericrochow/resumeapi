@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+"""Provides controller classes for authentication and database access."""
+# pylint: disable=too-many-lines
 
 import ast
-from contextlib import suppress
+
 from datetime import datetime, timedelta
 import logging
 import os
@@ -14,13 +16,14 @@ from jose import jwt  # noqa
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 
-import models
+from resumeapi import models
 
 
 class AuthController:
     """Interact with authentication methods."""
 
     def __init__(self) -> None:
+        """Interact with authentication methods."""
         load_dotenv()
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.secret_key = os.getenv("SECRET_KEY")
@@ -59,7 +62,7 @@ class AuthController:
         :param username: The username of the user to look up
         :type username: str
         :return: The requested user
-        :rtype: models.py.bak.User
+        :rtype: models.User
         :raises KeyError: No such user exists.
         """
         with Session(models.engine) as session:
@@ -78,7 +81,7 @@ class AuthController:
         :param password:
         :type password: str
         :return: The authenticated user
-        :rtype: models.py.bak.User
+        :rtype: models.User
         :raises KeyError: No such user exists.
         """
         user = self.get_user(username)
@@ -87,6 +90,7 @@ class AuthController:
             self.logger.info("Successful authentication")
             return user
         self.logger.error("Incorrect password")
+        raise ValueError("Incorrect password")
 
     def create_access_token(
         self, data: dict, expires_delta: Optional[timedelta] = None
@@ -123,7 +127,7 @@ class AuthController:
         :param disabled: Whether the user should be active, defaults to False
         :type disabled: bool, optional
         :return: The created user
-        :rtype: models.py.bak.User
+        :rtype: models.User
         """
         with Session(models.engine) as session:
             user = models.User(
@@ -143,7 +147,7 @@ class AuthController:
         :param username: The username of the user to disable
         :type username: str
         :return: The deactivated user
-        :rtype: models.py.bak.User
+        :rtype: models.User
         :raises KeyError: The user does not exist in the DB
         """
         self.logger.info("Attempting to deactivate user %s", username)
@@ -168,9 +172,6 @@ class AuthController:
 
 class ResumeController:
     """Interact with resume methods."""
-
-    def __init__(self) -> None:
-        pass
 
     @staticmethod
     def get_all_users() -> List[models.User]:
@@ -340,7 +341,7 @@ class ResumeController:
             session.commit()
 
     @classmethod
-    def get_experience(cls) -> List[models.Job]:
+    def get_experience(cls) -> List[models.JobResponse]:
         """
         Retrieve a list of previous jobs.
 
@@ -354,7 +355,7 @@ class ResumeController:
             for job in results:
                 j = ResumeController.get_experience_item(job.id)
                 resp.append(j)
-            return results
+            return resp
 
     @classmethod
     def get_experience_item(cls, job_id: int) -> models.JobResponse:
@@ -370,18 +371,18 @@ class ResumeController:
             results = session.get(models.Job, job_id)
             if results is None:
                 raise IndexError("No such experience exists in the DB.")
-            results = models.JobResponse.parse_obj(results.dict())
+            response = models.JobResponse.parse_obj(results.dict())
             details = ResumeController.get_experience_detail(job_id)
             if details is not None:
-                setattr(results, "details", [])
-                for detail in details:
-                    results.details.append(detail)
+                setattr(response, "details", [])
+                for detail_item in details:
+                    response.details.append(detail_item.detail)
             highlights = ResumeController.get_experience_highlight(job_id)
             if highlights is not None:
-                setattr(results, "highlights", [])
-                for hl in highlights:
-                    results.highlights.append(hl)
-            return results
+                setattr(response, "highlights", [])
+                for highlight_item in highlights:
+                    response.highlights.append(highlight_item.highlight)
+            return response
 
     @staticmethod
     def get_experience_detail(job_id: int) -> List[models.JobDetail]:
@@ -428,9 +429,7 @@ class ResumeController:
         :rtype: schema.Job
         """
         with Session(models.engine) as session:
-            statement = select(models.Education).where(
-                models.Job.employer == job.employer
-            )
+            statement = select(models.Job).where(models.Job.employer == job.employer)
             results = session.exec(statement).first()
             if results is None:
                 results = job
@@ -490,7 +489,7 @@ class ResumeController:
         :type job_detail_id: int
         """
         with Session(models.engine) as session:
-            results = session.get(models.BasicInfo, job_detail_id)
+            results = session.get(models.JobDetail, job_detail_id)
             if not results:
                 raise KeyError("The requested job detail does not exist")
             session.delete(results)
@@ -502,15 +501,19 @@ class ResumeController:
         Create or updates a job highlight.
 
         :param job_highlight: A highlight to add to a job
-        :type job_highlight: models.py.bak.JobHighlight
+        :type job_highlight: models.JobHighlight
         :return: The updated job highlight
-        :rtype: models.py.bak.JobHighlight
+        :rtype: models.JobHighlight
         """
         with Session(models.engine) as session:
-            results = session.get(models.JobHighlight.id, job_highlight.id)
+            statement = select(models.JobHighlight).where(
+                models.JobHighlight.id == job_highlight.id
+            )
+            results = session.exec(statement).first()
             if results is None:
                 results = job_highlight
-            for key, value in job_highlight:
+            print(results)
+            for key, value in job_highlight.dict(exclude_unset=True).items():
                 setattr(results, key, value)
             session.add(results)
             session.commit()
@@ -526,7 +529,7 @@ class ResumeController:
         :type job_highlight_id: int
         """
         with Session(models.engine) as session:
-            results = session.get(models.BasicInfo, job_highlight_id)
+            results = session.get(models.JobHighlight, job_highlight_id)
             if results is None:
                 raise KeyError("The requested job highlight does not exist")
             session.delete(results)
@@ -538,17 +541,17 @@ class ResumeController:
         Retrieve all preferences stored in the database.
 
         :return: k/v pairs of all preferences and values
-        :rtype: schema.Preferences
+        :rtype: models.Preferences
         """
         with Session(models.engine) as session:
             statement = select(models.Preference)
             results = session.exec(statement).all()
             model = dict()
-            for r in results:
+            for result in results:
                 try:
-                    model[r.preference] = ast.literal_eval(r.value)
+                    model[result.preference] = ast.literal_eval(result.value)
                 except (ValueError, SyntaxError):
-                    model[r.preference] = r.value
+                    model[result.preference] = result.value
             resp = models.Preferences.parse_obj(model)
             return resp
 
@@ -580,7 +583,7 @@ class ResumeController:
         :param preference: A k/v pair of a preference and its value
         :type preference: schema.Preference
         ;return: The updated preference and value
-        :rtype: models.py.bak.Preference
+        :rtype: models.Preference
         """
         with Session(models.engine) as session:
             statement = select(models.Preference).where(
@@ -616,13 +619,16 @@ class ResumeController:
             session.commit()
 
     @staticmethod
-    def get_certifications(valid_only: bool = False) -> List[models.Certification]:
+    def get_certifications(
+        valid_only: Optional[bool] = False,
+    ) -> List[models.Certification]:
         """
         Retrieve all configured certifications.
 
         Can optionally filter to only currently-valid certifications.
 
-        :param valid_only: Whether to limit the results to only currently-valid certifications, defaults to False
+        :param valid_only: Whether to limit the results to only currently-valid
+            certifications, defaults to False
         :type valid_only: bool, optional
         :return: All certifications and their info
         :rtype: List[schema.Certification]
@@ -740,7 +746,7 @@ class ResumeController:
         :param side_project: Details of the side project
         :type side_project: schema.SideProject
         :return: The updated or created side project
-        :rtype: models.py.bak.SideProject
+        :rtype: models.SideProject
         """
         with Session(models.engine) as session:
             statement = select(models.SideProject).where(
@@ -806,17 +812,17 @@ class ResumeController:
         :param interest: The value of the interest
         :type interest: str
         :return: The updated or created interest
-        :rtype: models.py.bak.Interest
+        :rtype: models.Interest
         """
         with Session(models.engine) as session:
-            statement = select(models.InterestType).where(
+            type_statement = select(models.InterestType).where(
                 models.InterestType.interest_type == category
             )
-            category_id = session.exec(statement).one()
-            statement = select(models.Interest).where(
+            category_id = session.exec(type_statement).one()
+            interest_statement = select(models.Interest).where(
                 models.Interest.interest == interest
             )
-            results = session.exec(statement).first()
+            results = session.exec(interest_statement).first()
             if results is None:
                 results = models.Interest()
             setattr(results, "interest", interest)
@@ -853,9 +859,16 @@ class ResumeController:
         :return: All interests
         :rtype: dict
         """
-        results = models.InterestsResponse()
-        results.personal = [i.interest for i in ResumeController.get_interests_by_category("personal")]
-        results.technical = [i.interest for i in ResumeController.get_interests_by_category("technical")]
+        results = models.InterestsResponse(
+            personal=[
+                i.interest
+                for i in ResumeController.get_interests_by_category("personal")
+            ],
+            technical=[
+                i.interest
+                for i in ResumeController.get_interests_by_category("technical")
+            ],
+        )
         return results
 
     @staticmethod
@@ -897,7 +910,7 @@ class ResumeController:
         Add or update a social link.
 
         :param social_link: Info for a social platform
-        :type social_link: models.py.bak.SocialLink
+        :type social_link: models.SocialLink
         :returns: The updated configuration for the social platform
         :rtype models.SocialLink:
         """
@@ -973,12 +986,10 @@ class ResumeController:
         :param skill: Details of the skill to update or add
         :type: schema.Skill
         :return: Details about the updated skill
-        :rtype: models.py.bak.Skill
+        :rtype: models.Skill
         """
         with Session(models.engine) as session:
-            statement = select(models.BasicInfo).where(
-                models.Skill.skill == skill.skill
-            )
+            statement = select(models.Skill).where(models.Skill.skill == skill.skill)
             results = session.exec(statement).first()
             if results is None:
                 results = skill
@@ -1068,17 +1079,16 @@ class ResumeController:
         :return: All elements of the resume
         :rtype: modes.FullResume
         """
-        # TODO: Use model instead of raw dict
-        results = dict()
-        results["basic_info"] = ResumeController.get_basic_info()
-        results["experience"] = ResumeController.get_experience()
-        results["education"] = ResumeController.get_all_education_history()
-        results["certifications"] = ResumeController.get_certifications()
-        results["side_projects"] = ResumeController.get_side_projects()
-        results["interests"] = ResumeController.get_all_interests()
-        results["social_links"] = ResumeController.get_social_links()
-        results["skills"] = ResumeController.get_skills()
-        results["preferences"] = ResumeController.get_all_preferences()
-        results["competencies"] = ResumeController.get_competencies()
-        response = models.FullResume.parse_obj(results)
+        response = models.FullResume(
+            basic_info=ResumeController.get_basic_info(),
+            experience=ResumeController.get_experience(),
+            education=ResumeController.get_all_education_history(),
+            certifications=ResumeController.get_certifications(),
+            side_projects=ResumeController.get_side_projects(),
+            interests=ResumeController.get_all_interests(),
+            social_links=ResumeController.get_social_links(),
+            skills=ResumeController.get_skills(),
+            preferences=ResumeController.get_all_preferences(),
+            competencies=ResumeController.get_competencies(),
+        )
         return response
