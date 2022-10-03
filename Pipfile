@@ -11,20 +11,18 @@ pydantic = {extras = ["dotenv", "email"], version = "*"}
 python-dotenv = "*"
 python-jose = {extras = ["cryptography"], version = "*"}
 python-multipart = "*"
-uvicorn = {extras = ["standard"], version = "*"}
 sqlmodel = "*"
-resumeapi = {editable = true, path = "."}
+uvicorn = {extras = ["standard"], version = "*"}
 
 [dev-packages]
 bandit = "*"
 black = "*"
 flake8 = "*"
-flake8-bandit = "*"
 install = "*"
 ipdb = "*"
 ipython = "*"
+mccabe = "*"
 mypy = "*"
 pydocstyle = {extras = ["toml"], version = "*"}
-
-[pipenv]
-allow_prereleases = true
+pylint = "*"
+tox = "*"
