@@ -162,7 +162,6 @@ async def get_full_resume() -> models.FullResume:
 @app.get(
     "/pdf",
     summary="Request PDF of my full resume",
-    responses={status.HTTP_404_NOT_FOUND: {"model": FileResponse}},
     status_code=status.HTTP_200_OK,
     tags=["Full Resume"],
 )
