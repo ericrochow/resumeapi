@@ -25,4 +25,6 @@ mccabe = "*"
 mypy = "*"
 pydocstyle = {extras = ["toml"], version = "*"}
 pylint = "*"
+pytest = "*"
+pytest-asyncio = "*"
 tox = "*"

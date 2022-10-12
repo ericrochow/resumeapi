@@ -6,7 +6,7 @@ from enum import Enum
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Field, SQLModel, UniqueConstraint, create_engine
@@ -42,12 +42,14 @@ class Users(BaseModel):  # noqa: D101
             }
         }
 
+    # TODO: write function to redact the password hash before returning
+
 
 class Token(BaseModel):  # noqa: D101
     """Token object model."""
 
     access_token: str
-    token_type: str
+    token_type: Literal["bearer"]
 
     class Config:  # pylint: disable=too-few-public-methods
         """Token configuration."""

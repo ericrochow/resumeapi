@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+"""Project variables."""
 
 __author__ = "Eric Rochow"
 __author_email__ = "ericrochow@gmail.com"
